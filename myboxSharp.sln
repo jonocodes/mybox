@@ -1,0 +1,116 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Server", "Server\Server.csproj", "{036D7623-59EE-4218-9545-540D50A3D00D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "mybox", "mybox\mybox.csproj", "{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientSetup", "ClientSetup\ClientSetup.csproj", "{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerSetup", "ServerSetup\ServerSetup.csproj", "{70E5D32A-72A6-40A1-85A1-B64B070C28AF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerAdmin", "ServerAdmin\ServerAdmin.csproj", "{FE630CA8-F42B-4E1B-9157-403A1119E650}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientWindows", "ClientWindows\ClientWindows.csproj", "{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Mixed Platforms = Debug|Mixed Platforms
+		Debug|x86 = Debug|x86
+		Release|Mixed Platforms = Release|Mixed Platforms
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Debug|x86.ActiveCfg = Debug|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Debug|x86.Build.0 = Debug|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|Mixed Platforms.Build.0 = Release|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|x86.ActiveCfg = Release|x86
+		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|x86.Build.0 = Release|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Debug|x86.ActiveCfg = Debug|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Debug|x86.Build.0 = Debug|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|Mixed Platforms.Build.0 = Release|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|x86.ActiveCfg = Release|x86
+		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|x86.Build.0 = Release|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Debug|x86.ActiveCfg = Debug|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Debug|x86.Build.0 = Debug|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Release|Mixed Platforms.Build.0 = Release|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Release|x86.ActiveCfg = Release|x86
+		{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}.Release|x86.Build.0 = Release|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Debug|x86.ActiveCfg = Debug|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Debug|x86.Build.0 = Debug|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Release|Mixed Platforms.Build.0 = Release|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Release|x86.ActiveCfg = Release|x86
+		{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}.Release|x86.Build.0 = Release|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Debug|x86.ActiveCfg = Debug|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Debug|x86.Build.0 = Debug|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Release|Mixed Platforms.Build.0 = Release|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Release|x86.ActiveCfg = Release|x86
+		{70E5D32A-72A6-40A1-85A1-B64B070C28AF}.Release|x86.Build.0 = Release|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|x86.ActiveCfg = Debug|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|x86.Build.0 = Debug|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|Mixed Platforms.Build.0 = Release|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|x86.ActiveCfg = Release|x86
+		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|x86.Build.0 = Release|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Debug|x86.ActiveCfg = Debug|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Debug|x86.Build.0 = Debug|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|Mixed Platforms.Build.0 = Release|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|x86.ActiveCfg = Release|x86
+		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		StartupItems = $0
+		$0.Item = Server\Server.csproj
+		$0.Item = Client\Client.csproj
+		Policies = $1
+		$1.TextStylePolicy = $2
+		$2.FileWidth = 120
+		$2.TabWidth = 2
+		$2.NoTabsAfterNonTabs = True
+		$2.RemoveTrailingWhitespace = True
+		$2.inheritsSet = VisualStudio
+		$2.inheritsScope = text/plain
+		$2.scope = text/x-csharp
+		$1.CSharpFormattingPolicy = $3
+		$3.ClassBraceStyle = EndOfLine
+		$3.MethodBraceStyle = EndOfLine
+		$3.ConstructorBraceStyle = EndOfLine
+		$3.inheritsSet = Mono
+		$3.inheritsScope = text/x-csharp
+		$3.scope = text/x-csharp
+		$1.TextStylePolicy = $4
+		$4.FileWidth = 120
+		$4.TabWidth = 4
+		$4.inheritsSet = Mono
+		$4.inheritsScope = text/plain
+		$4.scope = text/plain
+		$1.StandardHeader = $5
+		$5.Text = 
+		$5.inheritsSet = Apache2License
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,7 @@
+*.pidb
+Thumbs.db
+bin
+obj
+jargon
+/myboxSharp.suo
+/myboxSharp.userprefs
