@@ -1,6 +1,6 @@
 Mybox
 =====
-[https://github.com/mybox/mybox](https://github.com/mybox/myboxSharp)  
+[https://github.com/mybox/myboxSharp](https://github.com/mybox/myboxSharp)  
 version 0.3.0 by Jono
 
 
@@ -16,10 +16,15 @@ Project Status
 This is a work in progress. The client and server are operational, but unfinished. At this stage, the focus is on the core libraries so the most usable setup would be to use the command line version of Mybox. It should also be noted that socket encryption has been removed in the latest version but will be added back later. In addition the current version assumes that the time on the server and client are the same.
 
 
-Requirements
-------------
-.NET 3.5 or Mono
-sqlite3 library installed if not using Windows
+Requirements (Windows)
+----------------------
+*  .NET 3.5 runtime
+
+
+Requirements (Other Systems)
+----------------------------
+*  Mono runtime
+*  sqlite3 library installed
 
 
 Quickstart
@@ -30,7 +35,7 @@ Nothing needs to be installed. Mybox can be run in user mode without administrat
 ### Build the project ###
 
       Fetch the source: git clone git://github.com/mybox/myboxSharp.git
-      Build it with Monodevelop, Visual Studio or command line with xbuild.
+      Build it with MonoDevelop, Visual Studio or command line with xbuild.
 
 
 ### On the server machine ###

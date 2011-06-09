@@ -933,7 +933,7 @@ namespace mybox {
     private bool serverDiscussion(Signal messageToServer, Signal expectedReturnCommand, String argument) {
 
       int pollseconds = 1;  // TODO: make readonly globals
-      int pollcount = 20;
+      int pollcount = 60;  // amount of times to poll
 
       writeMessage("serverDiscussion starting with expected return: " + expectedReturnCommand.ToString());
       writeMessage("serverDiscussion sending message to server: " + messageToServer.ToString());

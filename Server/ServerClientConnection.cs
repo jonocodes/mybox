@@ -81,8 +81,8 @@ namespace mybox {
           listenToClient();
         }
       }
-      catch (Exception) {
-        Console.WriteLine("closed by remote host");
+      catch (Exception e) {
+        Console.WriteLine("closed by remote host with exception " + e.Message);
         close();
       }
     }
