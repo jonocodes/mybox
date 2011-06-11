@@ -37,10 +37,10 @@ namespace mybox {
   public enum Signal : byte {
     empty = 0,
 //    clientWantsToSend = 1,
-    clientWantsToSend_response = 2,
+//    clientWantsToSend_response = 2,
     clientWants = 3,
     deleteOnServer = 4,
-    renameOnServer = 5,
+//    renameOnServer = 5,
     createDirectoryOnServer = 6,
     requestServerFileList = 7,
     requestServerFileList_response = 8,
@@ -48,7 +48,7 @@ namespace mybox {
     attachaccount_response = 10,
     s2c = 11,
     deleteOnClient = 12,
-    renameOnClient = 13,
+//    renameOnClient = 13,
     createDirectoryOnClient = 14,
     c2s = 15,
     yes = 16,
@@ -64,7 +64,7 @@ namespace mybox {
     public String name; // TODO: make this a getter property
 		public long modtime;  // when the file data was last modified
 
-    public long updatetime; // when the file was last transfered     // is this being used?
+    public long updatetime; // when the file was last transfered     // is this being used anymore?
 
     public char type; // d=directory, f=file, l=link (link not yet supported)
 
@@ -74,26 +74,6 @@ namespace mybox {
       this.type = type;
       this.updatetime = updatetime;
     }
-
-    //public String serialize() {
-    //  return name + ";" + modtime + ";" + type;
-    //  //TODO: add updatetime
-    //}
-    
-    //public static MyFile fromSerial(String input) {
-    //  String[] split = input.Split(new char[]{';'});
-
-    //  if (split.Length == 2)
-    //    return (new MyFile(split[0], 'f', long.Parse(split[1])));
-    //  else if (split.Length == 3)
-    //    return (new MyFile(split[0], char.Parse(split[2]), long.Parse(split[1])));
-    //  else
-    //    return null;
-    //}
-
-    //public String ToString() {
-    //  return type + " " + name + " (" + modtime + ")";
-    //}
 
   }
 
@@ -317,29 +297,6 @@ namespace mybox {
     }
 
     /// <summary>
-    /// Rename a local item
-    /// </summary>
-    /// <param name="origAbsPath"></param>
-    /// <param name="newAbsPath"></param>
-    /// <returns></returns>
-    public static bool RenameLocal(String origAbsPath, String newAbsPath) {
-      Console.WriteLine("Renameing local item [" + origAbsPath + "] -> [" + newAbsPath + "]");
-
-      try {
-        if (File.Exists(origAbsPath))
-          File.Move(origAbsPath, newAbsPath);
-        else if (Directory.Exists(origAbsPath))
-          Directory.Move(origAbsPath, newAbsPath);
-      }
-      catch (Exception e) {
-        Console.WriteLine("Error renaming: " + e.Message);
-        return false;
-      }
-
-      return true;
-    }
-
-    /// <summary>
     /// Send a string along a socket
     /// </summary>
     /// <param name="socket"></param>
@@ -361,7 +318,7 @@ namespace mybox {
     /// </summary>
     /// <param name="socket"></param>
     /// <returns></returns>
-    public static String RecieveString(Socket socket) {
+    public static String ReceiveString(Socket socket) {
       byte[] lengthBuffer = new byte[2];
 
       // string length
@@ -392,7 +349,7 @@ namespace mybox {
     //  return true;
     //}
 
-    //public static long RecieveTimestamp(Socket socket) {
+    //public static long ReceiveTimestamp(Socket socket) {
     //  byte[] buffer = new byte[8];
     //  socket.Receive(buffer, 8, 0);
     //  return BitConverter.ToInt64(buffer, 0);
@@ -401,17 +358,17 @@ namespace mybox {
     /// <summary>
     /// Send a local file accross a socket
     /// </summary>
-    /// <param name="relPath">The relative path inside the data directory</param>
+    /// <param name="relPath">the relative path inside the data directory</param>
     /// <param name="socket"></param>
-    /// <param name="dataDir">The base data directory</param>
+    /// <param name="baseDir">the base directory for which to append the relPath to</param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public static MyFile SendFile(String relPath, Socket socket, string dataDir) {
+    public static MyFile SendFile(String relPath, Socket socket, String baseDir) {
 
       MyFile myFile = null;
 
       try {
-        String fullPath = dataDir + relPath;
+        String fullPath = baseDir + relPath;
 
         byte[] fileName = Encoding.UTF8.GetBytes(relPath); //file name
         byte[] fileNameLen = BitConverter.GetBytes((Int16)(fileName.Length)); //length of file name
@@ -441,12 +398,12 @@ namespace mybox {
 
 
     /// <summary>
-    /// Recieve a file over a socket
+    /// Receive a file over a socket
     /// </summary>
     /// <param name="socket"></param>
-    /// <param name="dataDir">the base directory the file will live in</param>
+    /// <param name="baseDir">the base directory the file will live in</param>
     /// <returns></returns>
-    public static MyFile RecieveFile(Socket socket, string dataDir) {
+    public static MyFile ReceiveFile(Socket socket, string baseDir) {
 
       byte[] buffer = new byte[buf_size];
 
@@ -473,7 +430,7 @@ namespace mybox {
         int fileBytesRead = 0;
 
 
-        String absPath = dataDir + relPath;
+        String absPath = baseDir + relPath;
 
         FileStream fs = File.Create(absPath, buf_size);
 

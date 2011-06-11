@@ -50,16 +50,45 @@ namespace mybox {
     /// </summary>
     private bool foundAtInit = false;
 
+    /// <summary>
+    /// Returns the modification time of the index file
+    /// </summary>
     public long LastUpdate {
       get {
         return Common.GetModTime(dbLocation);
       }
     }
 
+    /// <summary>
+    /// Getter for determining if the index was missing when the executable started
+    /// </summary>
     public bool FoundAtInit {
       get {
         return foundAtInit;
       }
+    }
+
+    /// <summary>
+    /// Get the location of the database file
+    /// </summary>
+    public String DbLocation {
+      get {
+        return dbLocation;
+      }
+    }
+
+    /// <summary>
+    /// Open the connection. Be careful with this. It should be used only after CloseDB was called.
+    /// </summary>
+    public void OpenDB() {
+      dbConnection.Open();
+    }
+
+    /// <summary>
+    /// Close the connection. Be careful with this. It should be used only so the database gets unlocked for transfer or removal.
+    /// </summary>
+    public void CloseDB() {
+      dbConnection.Close();
     }
 
     public FileIndex(String absPath) {
@@ -95,11 +124,15 @@ namespace mybox {
       }
     }
 
+    /// <summary>
+    /// Reads the index into a dictionary with a filename=>MyFile mapping
+    /// </summary>
+    /// <returns></returns>
     public Dictionary<String, MyFile> GetFiles() {
 
       // TODO: perhaps keep a running copy in memory so we dont have to fetch from DB?
 
-      Dictionary<String, MyFile> files = new Dictionary<string, MyFile>();
+      Dictionary<String, MyFile> files = new Dictionary<String, MyFile>();
 
       DbCommand command = dbConnection.CreateCommand();
       command.CommandText = "select * from files";
@@ -134,6 +167,11 @@ namespace mybox {
       return true;
     }
 
+    /// <summary>
+    /// Remove a file from the index
+    /// </summary>
+    /// <param name="fileName"></param>
+    /// <returns></returns>
     public bool Remove(String fileName) {
 
       DbCommand command = dbConnection.CreateCommand();
@@ -150,7 +188,7 @@ namespace mybox {
 
       List<MyFile> fileList = Common.GetFilesRecursive(baseDir);
 
-      //DbTransaction transaction = dbConnection.BeginTransaction();  // need to put this back
+      DbTransaction transaction = dbConnection.BeginTransaction();
 
       DbCommand clearCommand = dbConnection.CreateCommand();
       clearCommand.CommandText = "DELETE FROM files";
@@ -179,7 +217,7 @@ namespace mybox {
         command.ExecuteNonQuery();
       }
 
-      //transaction.Commit();
+      transaction.Commit();
 
       return true;
     }

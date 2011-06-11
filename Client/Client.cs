@@ -34,7 +34,7 @@ namespace mybox {
 
     private delegate void setStatusHandler(ClientStatus status);
 
-    private void setStatus (ClientStatus status) {
+    private void setStatus(ClientStatus status) {
       Console.WriteLine ("Status: " + status.ToString ());
     }
 
@@ -61,10 +61,10 @@ namespace mybox {
       Console.WriteLine(DateTime.Now + " : " + message);
     }
 
-    public Client (String configDir) {
+    public Client(String configDir) {
 
-      ClientServerConnection.LogHandlers.Add (new ClientServerConnection.LoggingHandlerDelegate (logToConsole));
-      ClientServerConnection.LogHandlers.Add (new ClientServerConnection.LoggingHandlerDelegate (logToFile));
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
       ClientServerConnection.StatusHandler = setStatus;
 
       try {
@@ -72,7 +72,8 @@ namespace mybox {
         ClientServerConnection client = new ClientServerConnection();
         client.LoadConfig(ClientServerConnection.ConfigFile);
         client.start();
-      } catch (Exception e) {
+      }
+      catch (Exception e) {
         logToConsole("Error: " + e.Message);
         logToFile("Error: " + e.Message);
 #if DEBUG

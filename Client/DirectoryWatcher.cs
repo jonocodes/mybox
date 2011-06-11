@@ -79,7 +79,7 @@ namespace mybox {
       watcher.Changed += new FileSystemEventHandler(onChanged);
       watcher.Created += new FileSystemEventHandler(onChanged);
       watcher.Deleted += new FileSystemEventHandler(onChanged);
-//      watcher.Renamed += new RenamedEventHandler(onRenamed);
+      watcher.Renamed += new RenamedEventHandler(onRenamed); // on which systems will this happen on?
 
       // Begin watching.
       watcher.EnableRaisingEvents = true;
@@ -107,6 +107,12 @@ namespace mybox {
       // Specify what is done when a file is changed, created, or deleted.
       client.DirectoryUpdate(e.ChangeType.ToString(), e.FullPath);
       //      Console.WriteLine ("File: " + e.FullPath + " " + e.ChangeType);
+    }
+
+    private void onRenamed(object source, RenamedEventArgs e) {
+      // Specify what is done when a file is renamed.
+      client.DirectoryUpdate(e.ChangeType.ToString(), e.OldFullPath +"=>"+ e.FullPath);
+      //      Console.WriteLine ("File: {0} renamed to {1}", e.OldFullPath, e.FullPath);
     }
 
   }

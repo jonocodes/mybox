@@ -47,12 +47,13 @@ namespace mybox {
     public static String AccountsDbfile = null;
     public AccountsDB Accounts = null;
 
+    private static String baseDataDir = null;
+
     public static readonly String DefaultAccountsDbFile = Common.UserHome + "/.mybox/mybox_server_accounts.db";
     public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/mybox_server.ini";
-    public static readonly String DefaultBaseDataDir = Common.UserHome + "/.mybox/mbServerSpace";
-    public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
-
-    private static String baseDataDir = null;
+    public static readonly String DefaultBaseDataDir = Common.UserHome + "/.mybox/mbServerSpace/";
+ //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
+    private const String indexFileNamePostfix = "_index.db";
 
     #endregion
 
@@ -115,6 +116,8 @@ namespace mybox {
       if (baseDataDir == null)
         baseDataDir = DefaultBaseDataDir;
 
+      baseDataDir = Common.EndDirWithSlash(baseDataDir);
+
       Common.CreateLocalDirectory(baseDataDir);
 
     }
@@ -144,7 +147,20 @@ namespace mybox {
     /// <param name="account"></param>
     /// <returns></returns>
     public static String GetAbsoluteDataDirectory(AccountsDB.Account account) {
-      return baseDataDir + "/" + account.id + "/";
+      return baseDataDir + account.id + "/";
+    }
+
+    /// <summary>
+    /// Get the location of the index file for an account on the server.
+    /// </summary>
+    /// <param name="account"></param>
+    /// <returns></returns>
+    public static String GetIndexLocation(AccountsDB.Account account) {
+      return baseDataDir + account.id + indexFileNamePostfix;
+    }
+
+    public MyFile SendIndex(AccountsDB.Account account, Socket socket) {
+      return Common.SendFile(account.id + indexFileNamePostfix, socket, baseDataDir);
     }
 
     /// <summary>

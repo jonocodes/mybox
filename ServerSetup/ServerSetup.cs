@@ -56,6 +56,8 @@ namespace mybox {
       if (input != String.Empty)
         baseDataDir = input;
 
+      baseDataDir = Common.EndDirWithSlash(baseDataDir);
+
       Console.Write("Accounts database file to create/use [" + accountsDbFile + "]: ");
       input = Console.ReadLine();
       if (input != String.Empty)
@@ -95,6 +97,7 @@ namespace mybox {
       gatherInput();
 
       if (!Common.CreateLocalDirectory(baseDataDir)) {
+        // TODO: make sure it has full write permissions after creation
         Console.WriteLine("Unable to setup directories.");
         Common.ExitError();
       }

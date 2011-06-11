@@ -67,6 +67,7 @@ namespace mybox {
     private const String logFileName = "mybox_client.log";
     private const String indexFileName = "mybox_client_index.db";
 
+    private static String configDir = null;
     private static String configFile = null;
     private static String logFile = null;
     private static FileIndex fileIndex = null;
@@ -300,24 +301,6 @@ namespace mybox {
       }
     }
     
-    /// <summary>
-    /// Tell server to rename item
-    /// </summary>
-    /// <param name="oldName"></param>
-    /// <param name="newName"></param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void renameOnServer(String oldName, String newName) {
-      writeMessage("Telling server to rename file " + oldName + " to " + newName);
-
-      try {
-        sendCommandToServer(Signal.renameOnServer);
-        Common.SendString(socket, oldName);
-        Common.SendString(socket, newName);
-        // TODO: update index
-      } catch (Exception e) {
-        writeMessage("error requesting server file rename " + e.Message);
-      }
-    }
 
     /// <summary>
     /// Tell server to create directory
@@ -840,7 +823,7 @@ namespace mybox {
 
       }
 
-      writeMessage("Connected: " + socket);
+//      writeMessage("Connected: " + socket);
 
       listenToServer();
 
@@ -1006,7 +989,9 @@ namespace mybox {
     /// </summary>
     /// <param name="absPath"></param>
     public static void SetConfigDir(String absPath) {
-    
+
+      configDir = absPath;
+
       if (!Directory.Exists(absPath))
         throw new Exception("Specified config directory does not exist: " + absPath);
 
@@ -1023,8 +1008,8 @@ namespace mybox {
     /// <summary>
     /// This function is called by the directory watcher to notify the client that files have changed
     /// </summary>
-    /// <param name="action">The change</param>
-    /// <param name="items">The item that changed</param>
+    /// <param name="action">the type of change (currently not being used)</param>
+    /// <param name="items">the item that changed</param>
     public void DirectoryUpdate(String action, String items) {
       writeMessage("DirectoryUpdate " + action + " " + items);
 
@@ -1045,7 +1030,7 @@ namespace mybox {
     /// </summary>
     private void updateTimer() {
 
-      while (resetTimer.WaitOne(2000)) { }  // returns false when the signal is not recieved
+      while (resetTimer.WaitOne(2000)) { }  // returns false when the signal is not received
 
       waiting = false;
 
@@ -1077,13 +1062,12 @@ namespace mybox {
       writeMessage("Handling input for signal " + signal);
 
       // TODO: make sure these all update the index
-      // TODO: fix/remove all rename operations
 
       setStatus(ClientStatus.SYNCING);
 
       switch (signal) {
         case Signal.s2c:
-          MyFile newFile = Common.RecieveFile(socket, dataDir);
+          MyFile newFile = Common.ReceiveFile(socket, dataDir);
           if (newFile != null) {
             fileIndex.Update(newFile);
             incommingFiles.Remove(newFile.name);
@@ -1093,52 +1077,31 @@ namespace mybox {
 
         case Signal.deleteOnClient:
           // catchup operation
-          String relPath = Common.RecieveString(socket);
+          String relPath = Common.ReceiveString(socket);
           if (Common.DeleteLocal(dataDir + relPath))
             fileIndex.Remove(relPath);
           break;
 
-        case Signal.renameOnClient:
-          // catchup operation
-          String arg = Common.RecieveString(socket);
-          String[] args = arg.Split(new string[] { "->" }, StringSplitOptions.None);
-          Common.RenameLocal(dataDir + args[0], dataDir + args[1]);
-          break;
-
         case Signal.createDirectoryOnClient:
           // catchup operation
-          relPath = Common.RecieveString(socket);
+          relPath = Common.ReceiveString(socket);
           if (Common.CreateLocalDirectory(dataDir + relPath))
             fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
           
           break;
 
-        case Signal.clientWantsToSend_response:
-          // handle responses later ?
-          
-          relPath = Common.RecieveString(socket);
-          String response = Common.RecieveString(socket); // TODO: change this to a signal
-
-          writeMessage(Signal.clientWantsToSend_response.ToString() + ": " + relPath + " = " + response);
-
-          if (response == "yes") {
-            outQueue.Enqueue(relPath);
-            processOutQueue();
-          }
-
-          break;
-
         case Signal.requestServerFileList_response:
 
-          String jsonString = Common.RecieveString(socket);
-//          Console.WriteLine("Recieved jsonString: " + jsonString);
-          S = decodeFileList(jsonString);
+          MyFile serverIndexFile = Common.ReceiveFile(socket, configDir);
+          FileIndex serverIndex = new FileIndex(configDir + serverIndexFile.name);
+          S = serverIndex.GetFiles();
+          serverIndex.CloseDB();
 
           break;
 
         case Signal.attachaccount_response:
 
-          jsonString = Common.RecieveString(socket);
+          String jsonString = Common.ReceiveString(socket);
 
           Dictionary<string, string> jsonMap = JsonConvert.DeserializeObject<Dictionary<string, string>>(jsonString);
 
@@ -1166,23 +1129,6 @@ namespace mybox {
       if (incommingFiles.Count == 0 && outQueue.Count == 0)
         setStatus(ClientStatus.READY);
 
-    }
-
-    /// <summary>
-    /// Decodes a json string into a file list dictionary
-    /// </summary>
-    /// <param name="jsonString"></param>
-    /// <returns></returns>
-    private static Dictionary<String, MyFile> decodeFileList(String jsonString) {
-
-      List<MyFile> preparse = JsonConvert.DeserializeObject<List<MyFile>>(jsonString);
-      
-      Dictionary<String, MyFile> result = new Dictionary<string, MyFile>();
-
-      foreach (MyFile file in preparse)
-        result.Add(file.name, file);
-
-      return result;
     }
 
     /// <summary>

@@ -45,6 +45,7 @@ namespace mybox {
     private byte[] inputSignalBuffer = new byte[1];
 
     public AccountsDB.Account Account = null;
+    private static FileIndex fileIndex = null;
 
     #endregion
 
@@ -127,6 +128,12 @@ namespace mybox {
       if (!Directory.Exists(dataDir))
         Directory.CreateDirectory(dataDir);
 
+      // handle the index
+      fileIndex = new FileIndex(Server.GetIndexLocation(Account));
+
+//      if (!fileIndex.FoundAtInit)
+        fileIndex.RefreshIndex(dataDir);
+
       Console.WriteLine("Attached account " + Account + " to handle " + handle);
       Console.WriteLine("Local server storage in: " + dataDir);
 
@@ -137,12 +144,12 @@ namespace mybox {
     /// Check the outgoing queue for files to send to the client and then send them!
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    private void checkOutQueue() {
+    private void processOutQueue() {
 
       if (outQueue.Count > 0) {
-        sendCommandToClient(Signal.s2c);  // should ove into SendFile
-        Common.SendFile(outQueue.Dequeue(), socket, dataDir);
-        checkOutQueue();
+        sendCommandToClient(Signal.s2c);
+        Common.SendFile(outQueue.Dequeue(), socket, dataDir); // TODO: check return value
+        processOutQueue();
       }
 
     }
@@ -157,13 +164,17 @@ namespace mybox {
 
       switch (signal) {
         case Signal.c2s:
-          MyFile myFile = Common.RecieveFile(socket, dataDir);
-          server.SpanCatchupOperation(handle, Account.id, signal, myFile.name);
+          MyFile newFile = Common.ReceiveFile(socket, dataDir);
+
+          if (newFile != null) 
+            fileIndex.Update(newFile);
+
+          server.SpanCatchupOperation(handle, Account.id, signal, newFile.name);
           break;
 
         //case Signal.clientWantsToSend:
-        //  String relPath = Common.RecieveString(socket);
-        //  long timestamp = Common.RecieveTimestamp(socket);
+        //  String relPath = Common.ReceiveString(socket);
+        //  long timestamp = Common.ReceiveTimestamp(socket);
 
         //  sendCommandToClient(Signal.clientWantsToSend_response);
 
@@ -179,49 +190,47 @@ namespace mybox {
         //  break;
 
         case Signal.clientWants:
-          String relPath = Common.RecieveString(socket);
+          String relPath = Common.ReceiveString(socket);
           if (File.Exists(dataDir + relPath)) {
             outQueue.Enqueue(relPath);
-            checkOutQueue();
+            processOutQueue();
           }
           break;
 
         case Signal.deleteOnServer:
-          relPath = Common.RecieveString(socket);
-          Common.DeleteLocal(dataDir + relPath);
+          relPath = Common.ReceiveString(socket);
+
+          if (Common.DeleteLocal(dataDir + relPath))
+            fileIndex.Remove(relPath);  // TODO: check return value
+
           server.SpanCatchupOperation(handle, Account.id, signal, relPath);
           break;
 
-        case Signal.renameOnServer:
-          relPath = Common.RecieveString(socket);
-          String relPathB = Common.RecieveString(socket);
-
-          if (File.Exists(dataDir + relPath))
-            Common.RenameLocal(dataDir + relPath, dataDir + relPathB);
-
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath + "->" + relPathB);
-          break;
-
         case Signal.createDirectoryOnServer:
-          relPath = Common.RecieveString(socket);
-          Common.CreateLocalDirectory(dataDir + relPath);
+          relPath = Common.ReceiveString(socket);
+          
+          if (Common.CreateLocalDirectory(dataDir + relPath))
+            fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
+
           server.SpanCatchupOperation(handle, Account.id, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
-          List<MyFile> fileList = Common.GetFilesRecursive(dataDir);
 
-          string jsonString = JsonConvert.SerializeObject(fileList);
-          // TODO: eventually use MyFile.serialize to save bytes. but even more eventually send the .db file instead of a string
+          fileIndex.CloseDB();
+
+          System.Threading.Thread.Sleep(1000);  // wait 1 second to make sure windows has closed
 
           sendCommandToClient(Signal.requestServerFileList_response);
-          Common.SendString(socket, jsonString);
+          server.SendIndex(Account, socket);
+
+          fileIndex.OpenDB();
 
           break;
 
         case Signal.attachaccount:
 
-          String args = Common.RecieveString(socket);
+          String args = Common.ReceiveString(socket);
 
           Dictionary<string, string> attachInput = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
 
@@ -245,7 +254,7 @@ namespace mybox {
             // TODO: disconnect the client here
           }
 
-          String jsonOutString = JsonConvert.SerializeObject(jsonOut);//fastJSON.JSON.Instance.ToJSON(jsonOut);
+          String jsonOutString = JsonConvert.SerializeObject(jsonOut);
 
           try {
             sendCommandToClient(Signal.attachaccount_response);
@@ -295,16 +304,6 @@ namespace mybox {
         }
         catch (Exception e) {
           Console.WriteLine("catchup delete to client failed: " + e.Message);
-        }
-      }
-      else if (inputOperation == Signal.renameOnServer) {  // handles files and directories?
-        try {
-          Console.WriteLine("catchup rename to client (" + handle + "): " + arg);
-          sendCommandToClient(Signal.renameOnClient);
-          Common.SendString(socket, arg);
-        }
-        catch (Exception e) {
-          Console.WriteLine("catchup rename to client failed: " + e.Message);
         }
       }
       else if (inputOperation == Signal.createDirectoryOnServer) {
