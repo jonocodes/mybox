@@ -39,11 +39,27 @@ namespace mybox {
   /// </summary>
   public class FileIndex {
 
+    #region members
+
     /// <summary>
     /// Absolute path to the sqlite db file
     /// </summary>
     private String dbLocation = null;
     private DbConnection dbConnection = null;
+
+    // The following members are stored prepared statements to speed up queries
+
+    private DbParameter paramPath = new SqliteParameter("path", DbType.String);
+    private DbParameter paramType = new SqliteParameter("type", DbType.String); // really just a single char
+    private DbParameter paramUpdatetime = new SqliteParameter("updatetime", DbType.Int64);
+    private DbParameter paramModtime = new SqliteParameter("modtime", DbType.Int64);
+    
+    private DbCommand commandInsertOrReplace = null;
+    private DbCommand commandInsertOrIgnore = null;
+    private DbCommand commandGetFiles = null;
+    private DbCommand commandDeleteFile = null;
+
+    #endregion
 
     /// <summary>
     /// Bool to determine if the index was missing when the executable started
@@ -85,10 +101,14 @@ namespace mybox {
     }
 
     /// <summary>
-    /// Close the connection. Be careful with this. It should be used only so the database gets unlocked for transfer or removal.
+    /// Close the connection. Be careful with this. It should be used only so the database gets unlocked for transfer or removal. Also note that this function does not return until the connection state is Closed
     /// </summary>
     public void CloseDB() {
       dbConnection.Close();
+
+      // wait until the state is no longer open before returning
+      while (dbConnection.State == ConnectionState.Open) 
+        System.Threading.Thread.Sleep(500);
     }
 
     public FileIndex(String absPath) {
@@ -102,8 +122,6 @@ namespace mybox {
       try {
         dbConnection = new SqliteConnection("URI=file:" + dbLocation + ",version=3");
         dbConnection.Open();
-
-        //      dbConnection.setAutoCommit(true);
 
         // TODO: replace field names with constants
         DbCommand command = dbConnection.CreateCommand();
@@ -122,6 +140,31 @@ namespace mybox {
         throw new Exception("database file " + dbLocation + " not found after init.");
         //Common.ExitError();
       }
+      
+      
+      // prepare the queries so they are nice and fast when the DB is open
+
+      commandInsertOrReplace = dbConnection.CreateCommand();
+      commandInsertOrReplace.Parameters.Add(paramPath);
+      commandInsertOrReplace.Parameters.Add(paramType);
+      commandInsertOrReplace.Parameters.Add(paramUpdatetime);
+      commandInsertOrReplace.Parameters.Add(paramModtime);
+      commandInsertOrReplace.CommandText = "insert or replace into files values(?,?,?,?)";
+
+      commandInsertOrIgnore = dbConnection.CreateCommand();
+      commandInsertOrIgnore.Parameters.Add(paramPath);
+      commandInsertOrIgnore.Parameters.Add(paramType);
+      commandInsertOrIgnore.Parameters.Add(paramUpdatetime);
+      commandInsertOrIgnore.Parameters.Add(paramModtime);
+      commandInsertOrIgnore.CommandText = "insert or ignore into files values(?,?,?,?)";
+
+      commandGetFiles = dbConnection.CreateCommand();
+      commandGetFiles.CommandText = "select * from files";
+
+      commandDeleteFile = dbConnection.CreateCommand();
+      commandDeleteFile.Parameters.Add(paramPath);
+      commandDeleteFile.CommandText = "delete from files where path = ?";
+
     }
 
     /// <summary>
@@ -134,9 +177,7 @@ namespace mybox {
 
       Dictionary<String, MyFile> files = new Dictionary<String, MyFile>();
 
-      DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "select * from files";
-      DbReader reader = command.ExecuteReader();
+      DbReader reader = commandGetFiles.ExecuteReader();
 
       while (reader.Read()) {
 
@@ -156,13 +197,12 @@ namespace mybox {
     /// <returns></returns>
     public bool Update(MyFile file) {
 
-      // TODO: sanitize file names as they enter the DB since they might have a single quote or something
+      paramPath.Value = file.name;
+      paramType.Value = file.type.ToString(); // to ensure it is stored as a char/string instead of a numeric value
+      paramModtime.Value = file.modtime;
+      paramUpdatetime.Value = Common.NowUtcLong();  // is this value needed in the DB?
 
-      DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "insert or replace into files(path, type, updatetime, modtime) values('"+ file.name +"', '"+
-        file.type.ToString() + "', '" +  Common.NowUtcLong() + "', '"+ file.modtime +"')";
-
-      command.ExecuteNonQuery();
+      commandInsertOrReplace.ExecuteNonQuery();
 
       return true;
     }
@@ -171,17 +211,17 @@ namespace mybox {
     /// Remove a file from the index
     /// </summary>
     /// <param name="fileName"></param>
-    /// <returns></returns>
+    /// <returns>true if 1 row was affected in the database</returns>
     public bool Remove(String fileName) {
-
-      DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "delete from files where path = '" + fileName + "'";
-
-      command.ExecuteNonQuery();
-
-      return true;
+      paramPath.Value = fileName;
+      return (commandDeleteFile.ExecuteNonQuery() == 1);
     }
 
+    /// <summary>
+    /// Rebuild the index from scratch
+    /// </summary>
+    /// <param name="baseDir">the root from which to list files from</param>
+    /// <returns></returns>
     public bool RefreshIndex(String baseDir) {
 
       Console.WriteLine("Refreshing index");
@@ -191,30 +231,19 @@ namespace mybox {
       DbTransaction transaction = dbConnection.BeginTransaction();
 
       DbCommand clearCommand = dbConnection.CreateCommand();
-      clearCommand.CommandText = "DELETE FROM files";
+      clearCommand.CommandText = "delete from files";
       clearCommand.ExecuteNonQuery();
-
-      DbCommand command = dbConnection.CreateCommand();
-      DbParameter paramPath = new SqliteParameter("path", DbType.String);   // new DbParameter("path");
-      DbParameter paramType = new SqliteParameter("type", DbType.String); // really a char
-      DbParameter paramUpdatetime = new SqliteParameter("updatetime", DbType.Int64);
-      DbParameter paramModtime = new SqliteParameter("modtime", DbType.Int64);
-      command.Parameters.Add(paramPath);
-      command.Parameters.Add(paramType);
-      command.Parameters.Add(paramUpdatetime);
-      command.Parameters.Add(paramModtime);
 
       foreach (MyFile file in fileList) {
 
         //preparedInsert = connection.prepareStatement("insert or ignore into archive values(?,?,?,?);");
-        command.CommandText = "insert or ignore into files values(?,?,?,?)";
 
         paramPath.Value = file.name;
         paramType.Value = file.type.ToString(); // to ensure it is stored as a char/string instead of a numeric value
         paramModtime.Value = file.modtime;
         paramUpdatetime.Value = Common.NowUtcLong();  // is this value needed in the DB?
 
-        command.ExecuteNonQuery();
+        commandInsertOrIgnore.ExecuteNonQuery();
       }
 
       transaction.Commit();

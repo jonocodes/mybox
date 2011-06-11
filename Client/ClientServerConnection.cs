@@ -85,7 +85,11 @@ namespace mybox {
     private Socket socket = null;
     private byte[] inputSignalBuffer = new byte[1];
     private Thread gatherDirectoryUpdatesThread;
-    private AutoResetEvent resetTimer = new AutoResetEvent(false);
+
+    /// <summary>
+    /// The timer that is used to wait for 2 seconds of silence before catchupSync is called
+    /// </summary>
+    private AutoResetEvent resetSilenceTimer = new AutoResetEvent(false);
 
     // properties
 
@@ -1014,10 +1018,10 @@ namespace mybox {
       writeMessage("DirectoryUpdate " + action + " " + items);
 
       if (gatherDirectoryUpdatesThread != null && waiting) {
-        resetTimer.Set(); // resets the timer
+        resetSilenceTimer.Set(); // resets the timer
       }
       else {
-        gatherDirectoryUpdatesThread = new Thread(updateTimer);
+        gatherDirectoryUpdatesThread = new Thread(updateSilenceTimer);
         gatherDirectoryUpdatesThread.Start();
       }
 
@@ -1028,9 +1032,9 @@ namespace mybox {
     /// This function is responsible for making sure the sync does not happen until 2 seconds of
     /// update silence.
     /// </summary>
-    private void updateTimer() {
+    private void updateSilenceTimer() {
 
-      while (resetTimer.WaitOne(2000)) { }  // returns false when the signal is not received
+      while (resetSilenceTimer.WaitOne(2000)) { }  // returns false when the signal is not received
 
       waiting = false;
 
@@ -1100,6 +1104,8 @@ namespace mybox {
           break;
 
         case Signal.attachaccount_response:
+
+          // TODO: replace JSON parser with simple text parsing so we dont have to lug around the dependency
 
           String jsonString = Common.ReceiveString(socket);
 

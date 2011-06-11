@@ -325,6 +325,7 @@ namespace mybox {
       socket.Receive(lengthBuffer, 2, 0);
       Int16 length = BitConverter.ToInt16(lengthBuffer, 0);
 
+      // FIXME: This fails with memory error with large amounts of bytes
       byte[] dataBuffer = new byte[length]; // TODO: remove array memory allocation from this function
 
       // string
@@ -421,7 +422,7 @@ namespace mybox {
         socket.Receive(buffer, 8, 0);
         DateTime timestamp = DateTime.FromBinary(BitConverter.ToInt64(buffer, 0));
 
-        Console.WriteLine("Recieving file: " + relPath + " " + timestamp.Ticks/* + " " + BitConverter.ToString(buffer, 0, 8)*/);
+        Console.WriteLine("Receiving file: " + relPath + " " + timestamp.Ticks/* + " " + BitConverter.ToString(buffer, 0, 8)*/);
 
         // data
         socket.Receive(buffer, 4, 0); // assumes filesize cannot be larger then int bytes, 4GB?

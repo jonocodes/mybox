@@ -37,10 +37,14 @@ namespace mybox {
 
     #region members
 
+    // map of handle => conncetion
     private Dictionary<IntPtr, ServerClientConnection> clients = new Dictionary<IntPtr, ServerClientConnection>();
 
     // map of userId => set of all connected clients that belong to that user
     private Dictionary<String, HashSet<IntPtr>> multiClientMap = new Dictionary<String, HashSet<IntPtr>>();
+
+    // map of userId => FileIndex. this is here so we dont have to make per client DB connections
+    public Dictionary<String, FileIndex> FileIndexes = new Dictionary<String, FileIndex>();
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
@@ -159,6 +163,12 @@ namespace mybox {
       return baseDataDir + account.id + indexFileNamePostfix;
     }
 
+    /// <summary>
+    /// Send the index for a user to a client
+    /// </summary>
+    /// <param name="account"></param>
+    /// <param name="socket"></param>
+    /// <returns></returns>
     public MyFile SendIndex(AccountsDB.Account account, Socket socket) {
       return Common.SendFile(account.id + indexFileNamePostfix, socket, baseDataDir);
     }
@@ -207,9 +217,12 @@ namespace mybox {
       if (toTerminate.Account != null) {
         Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.email + ")");
 
+        // update multimap
         HashSet<IntPtr> thisMap = multiClientMap[toTerminate.Account.id];
         thisMap.Remove(handle);
         multiClientMap[toTerminate.Account.id] = thisMap;
+
+        // note that this does not clear entries from the multi map, it just fills them with the empty set
       }
       else
         Console.WriteLine("Removing accountless client " + handle);

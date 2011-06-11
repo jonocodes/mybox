@@ -45,9 +45,23 @@ namespace mybox {
     private byte[] inputSignalBuffer = new byte[1];
 
     public AccountsDB.Account Account = null;
-    private static FileIndex fileIndex = null;
 
     #endregion
+
+    /// <summary>
+    /// Get or set the file index for this account on the server
+    /// </summary>
+    public FileIndex index {
+      get {
+        return server.FileIndexes[Account.id];
+      }
+      set {
+        if (server.FileIndexes.ContainsKey(Account.id))
+          server.FileIndexes[Account.id] = value;
+        else
+          server.FileIndexes.Add(Account.id, value);
+      }
+    }
 
     public ServerClientConnection(Server server, Socket inClientSocket) {
       this.server = server;
@@ -92,8 +106,10 @@ namespace mybox {
     /// Close the connection
     /// </summary>
     private void close() {
-      if (server != null)
+
+      if (server != null) {
         server.removeConnection(handle);
+      }
     }
 
 
@@ -129,10 +145,11 @@ namespace mybox {
         Directory.CreateDirectory(dataDir);
 
       // handle the index
-      fileIndex = new FileIndex(Server.GetIndexLocation(Account));
+      if (!server.FileIndexes.ContainsKey(Account.id))
+        index = new FileIndex(Server.GetIndexLocation(Account));
 
 //      if (!fileIndex.FoundAtInit)
-        fileIndex.RefreshIndex(dataDir);
+        index.RefreshIndex(dataDir);
 
       Console.WriteLine("Attached account " + Account + " to handle " + handle);
       Console.WriteLine("Local server storage in: " + dataDir);
@@ -167,7 +184,7 @@ namespace mybox {
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
           if (newFile != null) 
-            fileIndex.Update(newFile);
+            index.Update(newFile);
 
           server.SpanCatchupOperation(handle, Account.id, signal, newFile.name);
           break;
@@ -201,7 +218,7 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath))
-            fileIndex.Remove(relPath);  // TODO: check return value
+            index.Remove(relPath);  // TODO: check return value
 
           server.SpanCatchupOperation(handle, Account.id, signal, relPath);
           break;
@@ -210,21 +227,19 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
+            index.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
 
           server.SpanCatchupOperation(handle, Account.id, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
 
-          fileIndex.CloseDB();
-
-          System.Threading.Thread.Sleep(1000);  // wait 1 second to make sure windows has closed
+          index.CloseDB();  // close the connection because windows wont send it when it is open
 
           sendCommandToClient(Signal.requestServerFileList_response);
           server.SendIndex(Account, socket);
 
-          fileIndex.OpenDB();
+          index.OpenDB();
 
           break;
 
