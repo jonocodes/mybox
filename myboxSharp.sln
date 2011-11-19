@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerAdmin", "ServerAdmin\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientWindows", "ClientWindows\ClientWindows.csproj", "{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientGtk", "ClientGtk\ClientGtk.csproj", "{4C378D08-B7E4-4415-9ED1-8EBF724333D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -79,6 +81,13 @@ Global
 		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|Mixed Platforms.Build.0 = Release|x86
 		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|x86.ActiveCfg = Release|x86
 		{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}.Release|x86.Build.0 = Release|x86
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|Mixed Platforms.ActiveCfg = Debug|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|Mixed Platforms.Build.0 = Debug|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|x86.ActiveCfg = Debug|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|x86.Build.0 = Debug|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Release|Mixed Platforms.ActiveCfg = Release|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Release|Mixed Platforms.Build.0 = Release|Mixed Platforms
+		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Release|x86.ActiveCfg = Release|Mixed Platforms
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

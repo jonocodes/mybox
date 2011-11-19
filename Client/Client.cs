@@ -71,7 +71,7 @@ namespace mybox {
         ClientServerConnection.SetConfigDir(configDir);
         ClientServerConnection client = new ClientServerConnection();
         client.LoadConfig(ClientServerConnection.ConfigFile);
-        client.start();
+        client.Start();
       }
       catch (Exception e) {
         logToConsole("Error: " + e.Message);

@@ -47,30 +47,30 @@ namespace mybox {
       input = Console.ReadLine();
       if (input != String.Empty) configDir = input;
 
-      Console.Write("Data directory ["+ account.directory +"]: ");
+      Console.Write("Data directory ["+ account.Directory +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.directory = input;
+      if (input != String.Empty) account.Directory = input;
 
-      Console.Write("Server name ["+ account.serverName +"]: ");
+      Console.Write("Server name ["+ account.ServerName +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.serverName = input;
+      if (input != String.Empty) account.ServerName = input;
 
-      Console.Write("Server port ["+ account.serverPort +"]: ");
+      Console.Write("Server port ["+ account.ServerPort +"]: ");
       input = Console.ReadLine();
       if (input != String.Empty)
-        account.serverPort = int.Parse(input);  //catch
+        account.ServerPort = int.Parse(input);  //catch
       
       // attempt to connect to the server to see if it is up
-      Socket socket = ClientServerConnection.ConnectSocket(account.serverName, account.serverPort);
+      Socket socket = ClientServerConnection.ConnectSocket(account.ServerName, account.ServerPort);
 
       if (socket == null) {
         Console.WriteLine("Unable to contact server");
         Common.ExitError();
       }
 
-      Console.Write("Email ["+ account.email +"]: ");
+      Console.Write("Email ["+ account.Email +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.email = input;
+      if (input != String.Empty) account.Email = input;
 
       Console.Write("Password [" + password + "]: "); // TODO: bullet out console entry
       input = Console.ReadLine();
@@ -84,11 +84,11 @@ namespace mybox {
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(ClientServerConnection.ConfigFile, false)) {
         file.WriteLine("[settings]");
-        file.WriteLine("serverName=" + account.serverName);
-        file.WriteLine("serverPort=" + account.serverPort.ToString());
-        file.WriteLine("email=" + account.email);
-        file.WriteLine("salt=" + account.salt);
-        file.WriteLine("directory=" + account.directory);
+        file.WriteLine("serverName=" + account.ServerName);
+        file.WriteLine("serverPort=" + account.ServerPort.ToString());
+        file.WriteLine("email=" + account.Email);
+        file.WriteLine("salt=" + account.Salt);
+        file.WriteLine("directory=" + account.Directory);
       }
 
       Console.WriteLine("Config file written: " + ClientServerConnection.ConfigFile);
@@ -101,9 +101,9 @@ namespace mybox {
 
       // set up the defaults
       account = new ClientAccount();
-      account.serverName = "localhost";
-      account.serverPort = Common.DefaultCommunicationPort;
-      account.email = "bill@gates.com";
+      account.ServerName = "localhost";
+      account.ServerPort = Common.DefaultCommunicationPort;
+      account.Email = "bill@gates.com";
       password = "bill";
 
       configDir = ClientServerConnection.DefaultConfigDir;
@@ -112,19 +112,19 @@ namespace mybox {
     
       gatherInput();
 
-      account.directory = Common.EndDirWithSlash(account.directory);
+      account.Directory = Common.EndDirWithSlash(account.Directory);
       configDir = Common.EndDirWithSlash(configDir);
     
       // attach the account to the server to get the user
       // TODO: clean up this function and its arguments
       ClientServerConnection client = new ClientServerConnection();
-      account = client.StartGetAccountMode(account.serverName, account.serverPort, account.email, account.directory);
+      account = client.StartGetAccountMode(account.ServerName, account.ServerPort, account.Email, account.Directory);
       //client.close();
 
     
       // data directory
-      if (!Common.CreateLocalDirectory(account.directory)) {
-        Console.WriteLine("Data directory could not be created: " + account.directory);
+      if (!Common.CreateLocalDirectory(account.Directory)) {
+        Console.WriteLine("Data directory could not be created: " + account.Directory);
         Common.ExitError();
       }
 

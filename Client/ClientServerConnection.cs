@@ -43,12 +43,12 @@ namespace mybox {
   /// Structure for holding account info on the client side
   /// </summary>
   public class ClientAccount {
-    public String serverName = null;
-    public int serverPort = Common.DefaultCommunicationPort;
-    public String email = null;
-    public String directory = ClientServerConnection.DefaultClientDir;
-    public String salt = null;
-    public String encryptedPassword = null;
+    public String ServerName = null;
+    public int ServerPort = Common.DefaultCommunicationPort;
+    public String Email = null;
+    public String Directory = ClientServerConnection.DefaultClientDir;
+    public String Salt = null;
+    public String EncryptedPassword = null;
   }
 
   /// <summary>
@@ -86,12 +86,18 @@ namespace mybox {
     private byte[] inputSignalBuffer = new byte[1];
     private Thread gatherDirectoryUpdatesThread;
 
+    private bool paused = false;
+
     /// <summary>
     /// The timer that is used to wait for 2 seconds of silence before catchupSync is called
     /// </summary>
     private AutoResetEvent resetSilenceTimer = new AutoResetEvent(false);
 
     // properties
+
+    public bool Paused {
+      get { return paused; }
+    }
 
     public static String ConfigFile {
       get { return configFile; }
@@ -130,9 +136,9 @@ namespace mybox {
 
     public static StatusHandlerDelegate StatusHandler;
 
-    private void setStatus (ClientStatus status) {
+    private void setStatus(ClientStatus status) {
       if (StatusHandler != null)
-        StatusHandler (status);
+        StatusHandler(status);
     }
 
     #endregion
@@ -183,7 +189,7 @@ namespace mybox {
     /// <summary>
     /// Connect to the server and perform a full sync
     /// </summary>
-    public void start() {
+    public void Start() {
       attemptConnection(5);
 
       enableDirListener();
@@ -232,36 +238,36 @@ namespace mybox {
       try {
         IniParser iniParser = new IniParser(configFile);
 
-        account.serverName = iniParser.GetSetting("settings", "serverName"); // returns NULL when not found
-        account.serverPort = int.Parse(iniParser.GetSetting("settings", "serverPort"));
-        account.email = iniParser.GetSetting("settings", "email");
-        account.directory = iniParser.GetSetting("settings", "directory");
-        account.salt = iniParser.GetSetting("settings", "salt");
+        account.ServerName = iniParser.GetSetting("settings", "serverName"); // returns NULL when not found
+        account.ServerPort = int.Parse(iniParser.GetSetting("settings", "serverPort"));
+        account.Email = iniParser.GetSetting("settings", "email");
+        account.Directory = iniParser.GetSetting("settings", "directory");
+        account.Salt = iniParser.GetSetting("settings", "salt");
       } catch (FileNotFoundException e) {
         throw new Exception(e.Message);
       }
 
       // make sure directory ends with a slash
-      account.directory = Common.EndDirWithSlash(account.directory);
+      account.Directory = Common.EndDirWithSlash(account.Directory);
 
       // check values
 
-      if (account.serverName == null || account.serverName == string.Empty) {
+      if (account.ServerName == null || account.ServerName == string.Empty) {
         throw new Exception("Unable to determine host from settings file");
       }
 
-      if (account.email == null || account.email == string.Empty) {
+      if (account.Email == null || account.Email == string.Empty) {
         throw new Exception("Unable to determine email");
       }
 
-      if (account.directory == null)
-        account.directory = DefaultClientDir;
+      if (account.Directory == null)
+        account.Directory = DefaultClientDir;
 
-      if (!Directory.Exists(account.directory)) {
-        throw new Exception("Directory " + account.directory + " does not exist");
+      if (!Directory.Exists(account.Directory)) {
+        throw new Exception("Directory " + account.Directory + " does not exist");
       }
 
-      dataDir = account.directory;
+      dataDir = account.Directory;
     }
 
 
@@ -806,18 +812,18 @@ namespace mybox {
     /// <param name="pollInterval">number of seconds between connection retry</param>
     private void attemptConnection(int pollInterval) {
 
-      if (account.serverName == null) {
+      if (account.ServerName == null) {
         throw new Exception("Client not configured");
       }
 
       setStatus(ClientStatus.CONNECTING);
 
-      writeMessage("Establishing connection to " + account.serverName + ":" + account.serverPort + " ...");
+      writeMessage("Establishing connection to " + account.ServerName + ":" + account.ServerPort + " ...");
 
       // repeatedly attempt to connect to the server
       while (true) {
 
-        socket = ConnectSocket(account.serverName, account.serverPort);// new Socket(account.serverName, account.serverPort);
+        socket = ConnectSocket(account.ServerName, account.ServerPort);
 
         if (socket != null)
           break; // reachable if there is no exception thrown
@@ -832,7 +838,7 @@ namespace mybox {
       listenToServer();
 
       Dictionary<string, string> outArgs = new Dictionary<string, string>();
-      outArgs.Add("email", account.email);
+      outArgs.Add("email", account.Email);
       //    jsonOut.put("password", password);
 
       String jsonOut = JsonConvert.SerializeObject(outArgs);
@@ -844,33 +850,58 @@ namespace mybox {
       setStatus(ClientStatus.READY);
     }
 
+
+    public void Stop() {
+
+      writeMessage("Disconnecting started");
+
+      socket.Disconnect(false);
+
+      disableDirListener();
+
+      setStatus(ClientStatus.DISCONNECTED);
+
+      writeMessage("Disconnecting finished");
+    }
+
     /// <summary>
     /// Pause syncing. Stops listening to the server and stops dlistening for directory updates.
     /// </summary>
-    public void pause() {
+    public void Pause() {
 
       // TODO: disable listenToServer
-      
+      paused = true;
       disableDirListener();
+
+      setStatus(ClientStatus.PAUSED);
+
+      writeMessage("Pausing finished");
     }
 
     /// <summary>
     /// Resumes syncing. Enables listening to the server and listening for directory updates. Then performs a full sync.
     /// </summary>
-    public void unpause() {
-      listenToServer();
+    public void Unpause() {
+
+      paused = false;
+
+      writeMessage("Unpausing started");
+
+      //listenToServer();
       fullSync();
       enableDirListener();
+
+      writeMessage("Unausing finished");
     }
 
     /// <summary>
     /// Enables the directory update watcher
     /// </summary>
     public void enableDirListener() {
-      writeMessage("Listening on directory " + account.directory);
+      writeMessage("Listening on directory " + account.Directory);
 
       if (directoryWatcher == null)
-        directoryWatcher = new DirectoryWatcher(account.directory, this);
+        directoryWatcher = new DirectoryWatcher(account.Directory, this);
       else
         directoryWatcher.Listen();
     }
@@ -897,11 +928,11 @@ namespace mybox {
         throw new Exception("Client not configured");
       }
 
-      account.serverName = serverName;
-      account.serverPort = serverPort;
-      account.email = email;
-      account.directory = dataDir;
-      account.salt = "0"; // temp hack
+      account.ServerName = serverName;
+      account.ServerPort = serverPort;
+      account.Email = email;
+      account.Directory = dataDir;
+      account.Salt = "0"; // temp hack
 
       writeMessage("Establishing connection to port " + serverPort + ". Please wait ...");
 
@@ -920,7 +951,7 @@ namespace mybox {
     private bool serverDiscussion(Signal messageToServer, Signal expectedReturnCommand, String argument) {
 
       int pollseconds = 1;  // TODO: make readonly globals
-      int pollcount = 60;  // amount of times to poll
+      int pollcount = 30;  // amount of times to poll
 
       writeMessage("serverDiscussion starting with expected return: " + expectedReturnCommand.ToString());
       writeMessage("serverDiscussion sending message to server: " + messageToServer.ToString());
@@ -1063,6 +1094,9 @@ namespace mybox {
     /// <param name="signal"></param>
     private void handleInput(Signal signal) {
 
+      if (paused)
+        return;
+
       writeMessage("Handling input for signal " + signal);
 
       // TODO: make sure these all update the index
@@ -1096,6 +1130,8 @@ namespace mybox {
 
         case Signal.requestServerFileList_response:
 
+          // TODO: delete the old DB, since it may be locked from the last run?
+
           MyFile serverIndexFile = Common.ReceiveFile(socket, configDir);
           FileIndex serverIndex = new FileIndex(configDir + serverIndexFile.name);
           S = serverIndex.GetFiles();
@@ -1115,8 +1151,8 @@ namespace mybox {
             throw new Exception("Unable to attach account. Server response: " + jsonMap["error"]);
           }
           else {
-            account.salt = jsonMap["salt"];
-            writeMessage("set account salt to: " + account.salt);
+            account.Salt = jsonMap["salt"];
+            writeMessage("set account salt to: " + account.Salt);
 
             if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
               throw new Exception("Client and Server Mybox versions do not match");
@@ -1137,6 +1173,7 @@ namespace mybox {
 
     }
 
+
     /// <summary>
     /// Listen to the server via threadless async callback
     /// </summary>
@@ -1155,7 +1192,7 @@ namespace mybox {
         if (count == 0) {
           writeMessage("closed by remote host");
           //close();
-          start();
+          Start();
         } else {
           handleInput(Common.BufferToSignal(inputSignalBuffer));
           listenToServer();
@@ -1163,7 +1200,7 @@ namespace mybox {
       } catch (Exception) {
         writeMessage("closed by remote host");
         //close();
-        start();
+        Start();
       }
     }
 

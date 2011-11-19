@@ -25,6 +25,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows.Forms;
 
@@ -39,21 +40,52 @@ namespace mybox {
     private Icon iconWorking;
     private Icon iconReady;
 
-    private ClientServerConnection client;
+    private MenuItem menuConnection;
+
+    private ClientServerConnection clientServerConnection;
 
     private delegate void setOverlayHandler(bool upToDate); // TODO: finish handling this
 
-    private delegate void setStatusHandler (ClientStatus status);
+    private delegate void setStatusHandler(ClientStatus status);
 
-    private void setStatus (ClientStatus status) {
-      if (status == ClientStatus.ERROR)
-        trayIcon.Icon = iconError;
-      else if (status == ClientStatus.SYNCING || status == ClientStatus.CONNECTING)
-        trayIcon.Icon = iconWorking;
-      else if (status == ClientStatus.READY)
-        trayIcon.Icon = iconReady;
-      else
-        trayIcon.Icon = iconBlank;
+    private ClientStatus currentStatus = ClientStatus.DISCONNECTED;
+
+    private void setStatus(ClientStatus status) {
+
+      currentStatus = status;
+
+      switch (status) {
+        case ClientStatus.ERROR:
+          setIconSubtitle("An error has occured.");
+          trayIcon.Icon = iconError;
+          break;
+
+        case ClientStatus.SYNCING:
+          setIconSubtitle("Syncing...");
+          trayIcon.Icon = iconWorking;
+          break;
+
+        case ClientStatus.CONNECTING:
+          setIconSubtitle("Connecting to server...");
+          trayIcon.Icon = iconWorking;
+          break;
+
+        case ClientStatus.PAUSED:
+          setIconSubtitle("Syncing paused.");
+          trayIcon.Icon = iconWorking;  // or should we set it blank?
+          break;
+
+        case ClientStatus.READY:
+          setIconSubtitle("Everything is up to date.");
+          trayIcon.Icon = iconReady;
+          break;
+
+        default:
+          setIconSubtitle("");
+          trayIcon.Icon = iconBlank;
+          break;
+      }
+
     }
 
     /// <summary>
@@ -63,7 +95,7 @@ namespace mybox {
     private delegate void writeMessageHandler(String message);
 
     /// <summary>
-    /// this will handle logging the message to a file
+    /// Handles logging the message to a file
     /// </summary>
     /// <param name="message"></param>
     private void logToFile(String message) {
@@ -78,14 +110,18 @@ namespace mybox {
     private void logToTextBoxThreadSafe(String message) {
       if (richTextBoxMessages.InvokeRequired) {
         writeMessageHandler d = new writeMessageHandler(logToTextBox);
-        this.Invoke(d, new object[] { message });
-      } else {
+        this.BeginInvoke(d, new object[] { message });
+      }
+      else {
         logToTextBox(message);
       }
     }
 
+//    [MethodImpl(MethodImplOptions.Synchronized)]
     private void logToTextBox(String message) {
       richTextBoxMessages.AppendText(DateTime.Now + " : " + message + Environment.NewLine);
+      richTextBoxMessages.SelectionStart = richTextBoxMessages.Text.Length;
+      richTextBoxMessages.ScrollToCaret();
     }
 
 
@@ -134,28 +170,6 @@ namespace mybox {
       return Icon.FromHandle(square.GetHicon());
     }
 
-
-    private void startSysTrayItem () {
-
-      trayMenu = new ContextMenu ();
-      trayMenu.MenuItems.Add ("Open Mybox folder", openDirectory);
-      trayMenu.MenuItems.Add ("Preferences", ShowPrefs);
-      //trayMenu.MenuItems.Add("Connect", connect);
-      trayMenu.MenuItems.Add ("Exit", OnExit);
-
-      trayIcon = new NotifyIcon ();
-      trayIcon.Text = "Mybox";
-
-      trayIcon.Icon = iconBlank;
-
-      // Add menu to tray icon and show it.
-      trayIcon.ContextMenu = trayMenu;
-      trayIcon.Visible = true;
-      trayIcon.DoubleClick += new System.EventHandler (openDirectory);
-
-      ClientServerConnection.StatusHandler = setStatus;
-    }
-
     public PreferencesForm() {
 
       iconBlank = MakeIcon (ClientWindows.Properties.Resources.box_blank, 32, true);
@@ -173,6 +187,9 @@ namespace mybox {
       tabControl.SelectTab(tabMessages);
       ShowDialog();
 
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));
+
       // start the process
       backgroundWorker.RunWorkerAsync();
     }
@@ -184,20 +201,62 @@ namespace mybox {
       base.OnLoad(e);
     }
 
-    private void ShowPrefs(object sender, EventArgs e) {
-      ShowDialog();
+    private void showPrefs(object sender, EventArgs e) {
+      if (!this.Visible)
+        ShowDialog();
     }
 
-    //private void connect(object sender, EventArgs e) {
-    //  client.start();
-    //}
+    private void startSysTrayItem() {
+
+      //if (currentStatus == ClientStatus.DISCONNECTED)
+      //  menuConnection = new MenuItem("Connect", connect);
+      //else
+        menuConnection = new MenuItem("Disconnect", toggleConnection);  // TODO: make this reflect actual state
+
+      trayMenu = new ContextMenu();
+      trayMenu.MenuItems.Add("Open Mybox folder", openDirectory);
+      trayMenu.MenuItems.Add("Preferences", showPrefs);
+      trayMenu.MenuItems.Add("-");
+      trayMenu.MenuItems.Add(menuConnection);
+      trayMenu.MenuItems.Add("Exit", onExit);
+
+      trayIcon = new NotifyIcon();
+      trayIcon.Text = "Mybox";
+
+      trayIcon.Icon = iconBlank;
+
+      // Add menu to tray icon and show it.
+      trayIcon.ContextMenu = trayMenu;
+      trayIcon.Visible = true;
+      trayIcon.DoubleClick += new System.EventHandler(openDirectory);
+
+      ClientServerConnection.StatusHandler = setStatus;
+    }
+
+    private void setIconSubtitle(String value) {
+      if (value != string.Empty)
+        trayIcon.Text = "Mybox\n" + value;
+      else
+        trayIcon.Text = "Mybox";
+    }
+
+    private void toggleConnection(object sender, EventArgs e) {
+
+      if (menuConnection.Text == "Connect") {
+        clientServerConnection.Start();
+        menuConnection.Text = "Disconnect";
+      } else {
+        clientServerConnection.Stop();
+        menuConnection.Text = "Connect";
+      }
+    }
 
     private void openDirectory(object sender, EventArgs e) {
       // TODO: make sure the conlig passed before opening a null directory
-      System.Diagnostics.Process.Start(client.DataDir);
+      System.Diagnostics.Process.Start(clientServerConnection.DataDir);
     }
 
-    private void OnExit(object sender, EventArgs e) {
+    private void onExit(object sender, EventArgs e) {
       Application.Exit();
     }
 
@@ -205,23 +264,23 @@ namespace mybox {
       Hide();
     }
 
-    
 
     private void backgroundWorker_DoWork(object sender, DoWorkEventArgs e) {
-
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
-
       try {
-        ClientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
-        client = new ClientServerConnection();
 
-        client.LoadConfig(ClientServerConnection.ConfigFile);
-        labelAccount.Text = "Account: " + client.Account.email;
-        client.start();
-      } catch (Exception ec) {
-        logToFile("Error: " + ec.Message);
-        logToTextBoxThreadSafe("Error: " + ec.Message);
+        // only load the config, if it has not been loaded once already
+        if (clientServerConnection == null || clientServerConnection.Account.Email == null || clientServerConnection.Account.Email == string.Empty) {
+          ClientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
+          clientServerConnection = new ClientServerConnection();
+          clientServerConnection.LoadConfig(ClientServerConnection.ConfigFile);
+          labelAccount.Text = "Account: " + clientServerConnection.Account.Email;
+        }
+
+        clientServerConnection.Start();
+      } catch (Exception ex) {
+        logToFile("Error: " + ex.Message);
+//        logToTextBoxThreadSafe("Error: " + ex.Message);
+        setStatus(ClientStatus.ERROR);
       }
     }
 

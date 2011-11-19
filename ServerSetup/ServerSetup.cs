@@ -119,7 +119,7 @@ namespace mybox {
       Console.WriteLine("Setup finished successfully.");
 
       if (accounts == 0)
-        Console.WriteLine("You will not be able to to use Mybox unless accounts are created.");
+        Console.WriteLine("You will not be able to to use Mybox unless accounts are created. You can use ServerAdmin to manage accounts.");
     }
 
     /// <summary>
