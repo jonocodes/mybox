@@ -1,8 +1,8 @@
 /**
     Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

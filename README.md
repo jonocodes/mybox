@@ -1,6 +1,6 @@
 Mybox
 =====
-[https://github.com/mybox/myboxSharp](https://github.com/mybox/myboxSharp)  
+[https://github.com/jonocodes/mybox](https://github.com/jonocodes/mybox)
 version 0.3.0 by Jono
 
 
@@ -8,7 +8,7 @@ Introduction
 ------------
 Mybox is a centralized file hosting and synchronization system. The goal is for it to be an open source alternative to Dropbox. The software consists of a server and client component. One server can host multiple accounts and each account can be used on multiple computers, where all files are automatically kept in sync across those computers.
 
-See the [wiki](https://github.com/mybox/myboxSharp/wiki) for more details on [usage](https://github.com/mybox/myboxSharp/wiki/Usage), [development](https://github.com/mybox/myboxSharp/wiki/Development) and [the motivation](https://github.com/mybox/myboxSharp/wiki/Project-Goals) behind this project.
+See the [wiki](https://github.com/jonocodes/mybox/wiki) for more details on [usage](https://github.com/jonocodes/mybox/wiki/Usage), [development](https://github.com/jonocodes/mybox/Development) and [the motivation](https://github.com/jonocodes/mybox/wiki/Project-Goals) behind this project.
 
 
 Project Status
@@ -34,7 +34,7 @@ Nothing needs to be installed. Mybox can be run in user mode without administrat
 
 ### Build the project ###
 
-      Fetch the source: git clone git://github.com/mybox/myboxSharp.git
+      Fetch the source: git clone git://github.com/jonocodes/mybox.git
       Build it with MonoDevelop, Visual Studio or command line with xbuild.
 
 
