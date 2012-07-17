@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Data;
+using Newtonsoft.Json;
 
 namespace mybox {
 
@@ -48,16 +49,15 @@ namespace mybox {
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
-    public static String AccountsDbfile = null;
-    public AccountsDB Accounts = null;
+    public static String AccountsDbConnectionString = null;
+    public OwnCloudDB ownCloudDB = null;
 
-    private static String baseDataDir = null;
+    public static String baseDataDir = null;
 
-    public static readonly String DefaultAccountsDbFile = Common.UserHome + "/.mybox/mybox_server_accounts.db";
+    public static readonly String DefaultAccountsDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
     public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/mybox_server.ini";
-    public static readonly String DefaultBaseDataDir = Common.UserHome + "/.mybox/mbServerSpace/";
+    public static readonly String DefaultBaseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
  //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
-    private const String indexFileNamePostfix = "_index.db";
 
     #endregion
 
@@ -72,9 +72,9 @@ namespace mybox {
 
       LoadConfig(configFile);
 
-      Console.WriteLine("database: " + AccountsDbfile);
+      Console.WriteLine("database connection: " + AccountsDbConnectionString);
 
-      Accounts = new AccountsDB(AccountsDbfile);
+      ownCloudDB = new OwnCloudDB(AccountsDbConnectionString);
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
 
@@ -106,24 +106,20 @@ namespace mybox {
         IniParser iniParser = new IniParser(configFile);
 
         Port = int.Parse(iniParser.GetSetting("settings", "port"));  // returns NULL when not found ?
-        DefaultQuota = int.Parse(iniParser.GetSetting("settings", "defaultQuota"));
         baseDataDir = iniParser.GetSetting("settings", "baseDataDir");
-        AccountsDbfile = iniParser.GetSetting("settings", "accountsDbFile");
+        AccountsDbConnectionString = iniParser.GetSetting("settings", "accountsDbConnectionString");
       } catch (FileNotFoundException e) {
         Console.WriteLine(e.Message);
         Common.ExitError();
       }
 
-      if (AccountsDbfile == null)
-        AccountsDbfile = DefaultAccountsDbFile;
+      if (AccountsDbConnectionString == null)
+        AccountsDbConnectionString = DefaultAccountsDbConnectionString;
 
       if (baseDataDir == null)
         baseDataDir = DefaultBaseDataDir;
 
       baseDataDir = Common.EndDirWithSlash(baseDataDir);
-
-      Common.CreateLocalDirectory(baseDataDir);
-
     }
 
     /// <summary>
@@ -150,27 +146,8 @@ namespace mybox {
     /// </summary>
     /// <param name="account"></param>
     /// <returns></returns>
-    public static String GetAbsoluteDataDirectory(AccountsDB.Account account) {
-      return baseDataDir + account.id + "/";
-    }
-
-    /// <summary>
-    /// Get the location of the index file for an account on the server.
-    /// </summary>
-    /// <param name="account"></param>
-    /// <returns></returns>
-    public static String GetIndexLocation(AccountsDB.Account account) {
-      return baseDataDir + account.id + indexFileNamePostfix;
-    }
-
-    /// <summary>
-    /// Send the index for a user to a client
-    /// </summary>
-    /// <param name="account"></param>
-    /// <param name="socket"></param>
-    /// <returns></returns>
-    public MyFile SendIndex(AccountsDB.Account account, Socket socket) {
-      return Common.SendFile(account.id + indexFileNamePostfix, socket, baseDataDir);
+    public static String GetAbsoluteDataDirectory(OwnCloudDB.Account account) {
+      return baseDataDir + account.uid + "/files/";
     }
 
     /// <summary>
@@ -208,19 +185,19 @@ namespace mybox {
     /// Disconnect a ServerClientConnection from the server
     /// </summary>
     /// <param name="handle"></param>
-    public void removeConnection(IntPtr handle) {
+    public void RemoveConnection(IntPtr handle) {
 
       // update the client map
 
       ServerClientConnection toTerminate = clients[handle];
 
       if (toTerminate.Account != null) {
-        Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.email + ")");
+        Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.uid + ")");
 
         // update multimap
-        HashSet<IntPtr> thisMap = multiClientMap[toTerminate.Account.id];
+        HashSet<IntPtr> thisMap = multiClientMap[toTerminate.Account.uid];
         thisMap.Remove(handle);
-        multiClientMap[toTerminate.Account.id] = thisMap;
+        multiClientMap[toTerminate.Account.uid] = thisMap;
 
         // note that this does not clear entries from the multi map, it just fills them with the empty set
       }
@@ -239,7 +216,6 @@ namespace mybox {
       // remove from list
       clients.Remove(handle);
     }
-
 
 
     /// <summary>

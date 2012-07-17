@@ -22,6 +22,7 @@
 using System;
 using System.Net.Sockets;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -68,9 +69,9 @@ namespace mybox {
         Common.ExitError();
       }
 
-      Console.Write("Email ["+ account.Email +"]: ");
+      Console.Write("Email ["+ account.User +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.Email = input;
+      if (input != String.Empty) account.User = input;
 
       Console.Write("Password [" + password + "]: "); // TODO: bullet out console entry
       input = Console.ReadLine();
@@ -86,7 +87,7 @@ namespace mybox {
         file.WriteLine("[settings]");
         file.WriteLine("serverName=" + account.ServerName);
         file.WriteLine("serverPort=" + account.ServerPort.ToString());
-        file.WriteLine("email=" + account.Email);
+        file.WriteLine("email=" + account.User);
         file.WriteLine("salt=" + account.Salt);
         file.WriteLine("directory=" + account.Directory);
       }
@@ -96,15 +97,25 @@ namespace mybox {
       return true;
     }
 
+    /// <summary>
+    /// This will be hooked into the event handler in the MyWorker class and will make sure
+    /// that the message is logged to the GUI
+    /// </summary>
+    /// <param name="message"></param>
+    private static void logToConsole(String message) {
+      Console.WriteLine(DateTime.Now + " : " + message);
+    }
 
     public ClientSetup() {
+
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
 
       // set up the defaults
       account = new ClientAccount();
       account.ServerName = "localhost";
       account.ServerPort = Common.DefaultCommunicationPort;
-      account.Email = "bill@gates.com";
-      password = "bill";
+      account.User = "jono";
+      password = "password";
 
       configDir = ClientServerConnection.DefaultConfigDir;
 
@@ -118,7 +129,10 @@ namespace mybox {
       // attach the account to the server to get the user
       // TODO: clean up this function and its arguments
       ClientServerConnection client = new ClientServerConnection();
-      account = client.StartGetAccountMode(account.ServerName, account.ServerPort, account.Email, account.Directory);
+
+      Console.WriteLine("client initialized. trying coonection...");
+
+      account = client.StartGetAccountMode(account.ServerName, account.ServerPort, account.User, account.Directory);
       //client.close();
 
     

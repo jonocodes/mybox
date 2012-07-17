@@ -21,8 +21,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Data;
 
 namespace mybox {
 
@@ -32,11 +34,10 @@ namespace mybox {
   class ServerSetup {
 
     private int port = Server.Port;
-    private int defaultQuota = Server.DefaultQuota;
+//    private int defaultQuota = Server.DefaultQuota;
 
     private String configFile = Server.DefaultConfigFile;
-    private String baseDataDir = Server.DefaultBaseDataDir;
-    private String accountsDbFile = Server.DefaultAccountsDbFile;
+    private String accountsDbConnectionString = Server.DefaultAccountsDbConnectionString;
 
     private void gatherInput() {
 
@@ -46,23 +47,6 @@ namespace mybox {
       input = Console.ReadLine();
       if (input != String.Empty) port = int.Parse(input); // TODO: catch
 
-      Console.Write("Per-account quota in megabytes [" + defaultQuota + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        defaultQuota = int.Parse(input);
-
-      Console.Write("Base data directory to create/use [" + baseDataDir + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        baseDataDir = input;
-
-      baseDataDir = Common.EndDirWithSlash(baseDataDir);
-
-      Console.Write("Accounts database file to create/use [" + accountsDbFile + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        accountsDbFile = input;
-
       Console.Write("Config file to create [" + configFile + "]: ");
       input = Console.ReadLine();
       if (input != String.Empty)
@@ -70,56 +54,51 @@ namespace mybox {
 
     }
 
+    private bool saveConfig () {
 
-    private bool saveConfig() {
+      string configDir = Path.GetDirectoryName(configFile);
+
+      if (!Directory.Exists(configDir)) {
+        if (!Common.CreateLocalDirectory(configDir)) {
+          Console.WriteLine("Unable to create config directory " + configDir);
+          Common.ExitError ();
+        }
+      }
 
       // TODO: handle existing file
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
-        file.WriteLine("[settings]");
-        file.WriteLine("port=" + port);
-        file.WriteLine("defaultQuota=" + defaultQuota);
-        file.WriteLine("baseDataDir=" + baseDataDir);
-        file.WriteLine("accountsDbFile=" + accountsDbFile);
+        file.WriteLine ("[settings]");
+        file.WriteLine ("port=" + port);
+        file.WriteLine("accountsDbConnectionString=" + accountsDbConnectionString);
       }
 
-      Console.WriteLine("Config file written: " + configFile);
+      Console.WriteLine ("Config file written: " + configFile);
 
       return true;
     }
 
-    private ServerSetup() {
+    private ServerSetup () {
 
-      Console.WriteLine("Welcome to the Mybox server setup wizard");
-    
-      // TODO: add facility to create a new database
+      Console.WriteLine ("Welcome to the Mybox server setup wizard");
 
       gatherInput();
-
-      if (!Common.CreateLocalDirectory(baseDataDir)) {
-        // TODO: make sure it has full write permissions after creation
-        Console.WriteLine("Unable to setup directories.");
-        Common.ExitError();
-      }
-    
-      if (!AccountsDB.Setup(accountsDbFile)) {
-        Console.WriteLine("Unable to setup database.");
-        Common.ExitError();
-      }
 
       if (!saveConfig()) {
         Console.WriteLine("Unable to save config file.");
         Common.ExitError();
       }
 
-      AccountsDB accountsDB = new AccountsDB(accountsDbFile);
-      int accounts = accountsDB.AccountsCount();
+      // TODO: elegently notify the user if the owncloud db is unreachable
+
+      OwnCloudDB ownCloudDB = new OwnCloudDB(accountsDbConnectionString);
+      int accounts = ownCloudDB.AccountsCount();
       Console.WriteLine("The database contains " + accounts + " accounts");
 
       Console.WriteLine("Setup finished successfully.");
 
       if (accounts == 0)
-        Console.WriteLine("You will not be able to to use Mybox unless accounts are created. You can use ServerAdmin to manage accounts.");
+        Console.WriteLine("You will not be able to to use Mybox unless accounts are created. Do this in Owncloud.");
     }
 
     /// <summary>

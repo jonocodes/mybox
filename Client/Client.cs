@@ -32,7 +32,7 @@ namespace mybox {
   /// </summary>
   class Client {
 
-    private delegate void setStatusHandler(ClientStatus status);
+    //private delegate void setStatusHandler(ClientStatus status);
 
     private void setStatus(ClientStatus status) {
       Console.WriteLine ("Status: " + status.ToString ());
@@ -42,13 +42,13 @@ namespace mybox {
     /// this delegate is used for the BeginInvoke to allow for thread safe updating of the GUI
     /// </summary>
     /// <param name="message"></param>
-    private delegate void writeMessageHandler(String message);
+    //private delegate void writeMessageHandler(String message);
 
     /// <summary>
     /// this will handle logging the message to a file
     /// </summary>
     /// <param name="message"></param>
-    private void logToFile(String message) {
+    private static void logToFile(String message) {
       File.AppendAllText(ClientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
     }
 
@@ -57,7 +57,7 @@ namespace mybox {
     /// that the message is logged to the GUI
     /// </summary>
     /// <param name="message"></param>
-    private void logToConsole(String message) {
+    private static void logToConsole(String message) {
       Console.WriteLine(DateTime.Now + " : " + message);
     }
 

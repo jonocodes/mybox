@@ -61,18 +61,14 @@ namespace mybox {
   /// </summary>
   public class MyFile {
 
-    public String name; // TODO: make this a getter property
+    public String name; // TODO: make this a getter property. and perhaps change to 'path'
 		public long modtime;  // when the file data was last modified
-
-    public long updatetime; // when the file was last transfered     // is this being used anymore?
-
     public char type; // d=directory, f=file, l=link (link not yet supported)
 
-    public MyFile(String name, char type, long modtime, long updatetime) {
+    public MyFile(String name, char type, long modtime /*, long updatetime*/) {
       this.name = name;
       this.modtime = modtime;
       this.type = type;
-      this.updatetime = updatetime;
     }
 
   }
@@ -93,6 +89,8 @@ namespace mybox {
     public const int DefaultCommunicationPort = 4446;
 
     private static int buf_size = 1024;
+
+    private static DateTime epoch = new DateTime(1970,1,1,0,0,0,0);
 
     /// <summary>
     /// The user's system home directory primarialy used for determining where the config directory is
@@ -121,11 +119,29 @@ namespace mybox {
     }
 
     /// <summary>
-    /// Get the current timestamp in UTC as a long
+    /// Convert UNIX timestamp to a datetime object
     /// </summary>
-    /// <returns></returns>
-    public static long NowUtcLong() {
-      return DateTime.UtcNow.Ticks;
+    /// <returns>
+    /// DateTime
+    /// </returns>
+    /// <param name='unixTimeStamp'>
+    /// Unix time stamp.
+    /// </param>
+    public static DateTime UnixTimeStampToDateTime( long unixTimeStamp ) {
+      return epoch.AddSeconds(unixTimeStamp);
+    }
+
+    /// <summary>
+    /// Convert DateTime to unix timestamp.
+    /// </summary>
+    /// <returns>
+    /// The unix timestamp.
+    /// </returns>
+    /// <param name='dateTime'>
+    /// DateTime
+    /// </param>
+    public static long DateTimeToUnixTimestamp(DateTime dateTime) {
+      return Convert.ToInt64(Math.Floor((dateTime - epoch).TotalSeconds));
     }
 
     /// <summary>
@@ -134,7 +150,7 @@ namespace mybox {
     /// <param name="fullPath"></param>
     /// <returns></returns>
     public static long GetModTime(String fullPath) {
-      return File.GetLastWriteTimeUtc(fullPath).Ticks;
+      return DateTimeToUnixTimestamp(File.GetLastWriteTimeUtc(fullPath));
     }
 
     /// <summary>
@@ -235,13 +251,13 @@ namespace mybox {
           string[] files = Directory.GetFiles(dir, "*.*");
 
           foreach (string absPath in files) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'f', Common.GetModTime(absPath), -1));
+            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'f', Common.GetModTime(absPath)/*, -1*/));
           }
 
           //result.AddRange(Directory.GetFiles(dir, "*.*"));
 
           foreach (string absPath in Directory.GetDirectories(dir)) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'd', Common.GetModTime(absPath), -1));
+            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'd', Common.GetModTime(absPath)/*, -1*/));
             stack.Push(absPath);
           }
         }
@@ -325,36 +341,18 @@ namespace mybox {
       socket.Receive(lengthBuffer, 2, 0);
       Int16 length = BitConverter.ToInt16(lengthBuffer, 0);
 
+      //Console.WriteLine("ReceiveString getting bytes " + length);
+
       // FIXME: This fails with memory error with large amounts of bytes
       byte[] dataBuffer = new byte[length]; // TODO: remove array memory allocation from this function
 
       // string
       socket.Receive(dataBuffer, length, 0);
+
+      //Console.WriteLine("RecieveString got string " +System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length));
+
       return System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length);
     }
-
-
-    //[MethodImpl(MethodImplOptions.Synchronized)]
-    //public /*synchronized*/ void SendCommand(Socket socket, Signal signal) {
-    //  try {
-    //    socket.Send(Common.signalToBuffer(signal));
-    //  } catch (IOException ioe) {
-    //    Console.WriteLine(handle + " ERROR sending: " + ioe.Message);
-    //    close();
-    //  }
-    //}
-
-    //public static bool SendTimestamp(Socket socket, long timestamp) {
-    //  byte[] buffer = BitConverter.GetBytes(timestamp);
-    //  socket.Send(buffer);
-    //  return true;
-    //}
-
-    //public static long ReceiveTimestamp(Socket socket) {
-    //  byte[] buffer = new byte[8];
-    //  socket.Receive(buffer, 8, 0);
-    //  return BitConverter.ToInt64(buffer, 0);
-    //}
 
     /// <summary>
     /// Send a local file accross a socket
@@ -376,7 +374,7 @@ namespace mybox {
         byte[] fileData = File.ReadAllBytes(fullPath); //file
         byte[] fileDataLen = BitConverter.GetBytes(fileData.Length); // file length
 
-        long modtime = Common.GetModTime(fullPath);
+        long modtime = Common.GetModTime(fullPath); // TODO: make timestamps into int
 
         byte[] timestamp = BitConverter.GetBytes(modtime); // assume long = int64 = 8 bytes
 
@@ -388,7 +386,7 @@ namespace mybox {
         socket.Send(fileDataLen);//4
         socket.Send(fileData);
 
-        myFile = new MyFile(relPath, 'f', modtime, Common.NowUtcLong());
+        myFile = new MyFile(relPath, 'f', modtime/*, Common.NowUtcLong()*/);
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
@@ -419,17 +417,17 @@ namespace mybox {
         String relPath = System.Text.Encoding.UTF8.GetString(buffer, 0, nameLength);
 
         // timestamp
-        socket.Receive(buffer, 8, 0);
-        DateTime timestamp = DateTime.FromBinary(BitConverter.ToInt64(buffer, 0));
+        socket.Receive(buffer, 8, 0); // TODO: make timestamps into int
 
-        Console.WriteLine("Receiving file: " + relPath + " " + timestamp.Ticks/* + " " + BitConverter.ToString(buffer, 0, 8)*/);
+        DateTime timestamp = UnixTimeStampToDateTime(BitConverter.ToInt64(buffer, 0));
+
+        Console.WriteLine("Receiving file: " + relPath + " " + DateTimeToUnixTimestamp(timestamp) /* + " " + BitConverter.ToString(buffer, 0, 8)*/);
 
         // data
         socket.Receive(buffer, 4, 0); // assumes filesize cannot be larger then int bytes, 4GB?
         Int32 fileLength = BitConverter.ToInt32(buffer, 0);
 
         int fileBytesRead = 0;
-
 
         String absPath = baseDir + relPath;
 
@@ -449,7 +447,7 @@ namespace mybox {
 
         File.SetLastWriteTimeUtc(absPath, timestamp);
 
-        myFile = new MyFile(relPath, 'f', timestamp.Ticks, Common.NowUtcLong());
+        myFile = new MyFile(relPath, 'f', timestamp.Ticks);
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);

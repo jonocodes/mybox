@@ -44,24 +44,9 @@ namespace mybox {
     private String dataDir = null;
     private byte[] inputSignalBuffer = new byte[1];
 
-    public AccountsDB.Account Account = null;
+    public OwnCloudDB.Account Account = null;
 
     #endregion
-
-    /// <summary>
-    /// Get or set the file index for this account on the server
-    /// </summary>
-    public FileIndex index {
-      get {
-        return server.FileIndexes[Account.id];
-      }
-      set {
-        if (server.FileIndexes.ContainsKey(Account.id))
-          server.FileIndexes[Account.id] = value;
-        else
-          server.FileIndexes.Add(Account.id, value);
-      }
-    }
 
     public ServerClientConnection(Server server, Socket inClientSocket) {
       this.server = server;
@@ -97,7 +82,7 @@ namespace mybox {
         }
       }
       catch (Exception e) {
-        Console.WriteLine("closed by remote host with exception " + e.Message);
+        Console.WriteLine("closed by remote host with exception " + e.Message +"\n" + e.StackTrace);
         close();
       }
     }
@@ -108,10 +93,9 @@ namespace mybox {
     private void close() {
 
       if (server != null) {
-        server.removeConnection(handle);
+        server.RemoveConnection(handle);
       }
     }
-
 
     [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToClient(Signal signal) {
@@ -129,29 +113,23 @@ namespace mybox {
     /// </summary>
     /// <param name="email"></param>
     /// <returns></returns>
-    private bool attachAccount(String email) {
+    private bool attachAccount(String uid) {
 
-      Account = server.Accounts.GetAccountByEmail(email);
+      Account = server.ownCloudDB.GetAccountByID(uid);
 
       if (Account == null) {
-        Console.WriteLine("Account does not exist " + email); // TODO: return false?
+        Console.WriteLine("Account does not exist " + uid); // TODO: return false?
         return false;
       }
 
       dataDir = Server.GetAbsoluteDataDirectory(Account);
 
-      // create directory if it does not exist
-      if (!Directory.Exists(dataDir))
-        Directory.CreateDirectory(dataDir);
+      if (!Directory.Exists(dataDir)) {
+        Console.WriteLine("Unable to find data directory for " + uid);
+        return false;
+      }
 
-      // handle the index
-      if (!server.FileIndexes.ContainsKey(Account.id))
-        index = new FileIndex(Server.GetIndexLocation(Account));
-
-//      if (!fileIndex.FoundAtInit)
-        index.RefreshIndex(dataDir);
-
-      Console.WriteLine("Attached account " + Account + " to handle " + handle);
+      Console.WriteLine("Attached account " + uid + " to handle " + handle);
       Console.WriteLine("Local server storage in: " + dataDir);
 
       return true;
@@ -181,12 +159,13 @@ namespace mybox {
 
       switch (signal) {
         case Signal.c2s:
+
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
-          if (newFile != null) 
-            index.Update(newFile);
+          if (newFile != null)
+            server.ownCloudDB.UpdateFile(Account, newFile);
 
-          server.SpanCatchupOperation(handle, Account.id, signal, newFile.name);
+          server.SpanCatchupOperation(handle, Account.uid, signal, newFile.name);
           break;
 
         //case Signal.clientWantsToSend:
@@ -218,28 +197,38 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath))
-            index.Remove(relPath);  // TODO: check return value
+            server.ownCloudDB.RemoveFile(Account, relPath);
+//            index.Remove(relPath);  // TODO: check return value
 
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath);
+          server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
           break;
 
         case Signal.createDirectoryOnServer:
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            index.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
+            server.ownCloudDB.UpdateFile(Account, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)/*, Common.NowUtcLong()*/));
+          //  index.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
 
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath);
+          server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
 
-          index.CloseDB();  // close the connection because windows wont send it when it is open
+          List<List<string>> fileListToSerialize = server.ownCloudDB.GetFileListSerializable(Account);
 
-          sendCommandToClient(Signal.requestServerFileList_response);
-          server.SendIndex(Account, socket);
+          String jsonOutStringFiles = JsonConvert.SerializeObject(fileListToSerialize);
 
-          index.OpenDB();
+          Console.WriteLine("sending json file list: " + jsonOutStringFiles);
+
+          try {
+            sendCommandToClient(Signal.requestServerFileList_response);
+            Common.SendString(socket, jsonOutStringFiles);
+          }
+          catch (Exception e) {
+            Console.WriteLine("Error during " + Signal.requestServerFileList_response + e.Message);
+            Common.ExitError();
+          }
 
           break;
 
@@ -257,10 +246,10 @@ namespace mybox {
 
           if (attachAccount(email)) {
             jsonOut.Add("status", "success");
-            jsonOut.Add("quota", Account.quota.ToString());
-            jsonOut.Add("salt", Account.salt);
+            //jsonOut.Add("quota", Account.quota.ToString());
+            //jsonOut.Add("salt", Account.salt);
 
-            server.AddToMultiMap(Account.id, handle);
+            server.AddToMultiMap(Account.uid, handle);
           }
           else {
             jsonOut.Add("status", "failed");

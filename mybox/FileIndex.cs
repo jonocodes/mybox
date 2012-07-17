@@ -51,7 +51,6 @@ namespace mybox {
 
     private DbParameter paramPath = new SqliteParameter("path", DbType.String);
     private DbParameter paramType = new SqliteParameter("type", DbType.String); // really just a single char
-    private DbParameter paramUpdatetime = new SqliteParameter("updatetime", DbType.Int64);
     private DbParameter paramModtime = new SqliteParameter("modtime", DbType.Int64);
     
     private DbCommand commandInsertOrReplace = null;
@@ -125,7 +124,7 @@ namespace mybox {
 
         // TODO: replace field names with constants
         DbCommand command = dbConnection.CreateCommand();
-        command.CommandText = "create table if not exists files (path text primary key, type char(1), updatetime bigint, modtime bigint)";
+        command.CommandText = "create table if not exists files (path text primary key, type char(1), modtime bigint)";
 
         command.ExecuteNonQuery();
 
@@ -140,23 +139,20 @@ namespace mybox {
         throw new Exception("database file " + dbLocation + " not found after init.");
         //Common.ExitError();
       }
-      
-      
+
       // prepare the queries so they are nice and fast when the DB is open
 
       commandInsertOrReplace = dbConnection.CreateCommand();
       commandInsertOrReplace.Parameters.Add(paramPath);
       commandInsertOrReplace.Parameters.Add(paramType);
-      commandInsertOrReplace.Parameters.Add(paramUpdatetime);
       commandInsertOrReplace.Parameters.Add(paramModtime);
-      commandInsertOrReplace.CommandText = "insert or replace into files values(?,?,?,?)";
+      commandInsertOrReplace.CommandText = "insert or replace into files values(?,?,?)";
 
       commandInsertOrIgnore = dbConnection.CreateCommand();
       commandInsertOrIgnore.Parameters.Add(paramPath);
       commandInsertOrIgnore.Parameters.Add(paramType);
-      commandInsertOrIgnore.Parameters.Add(paramUpdatetime);
       commandInsertOrIgnore.Parameters.Add(paramModtime);
-      commandInsertOrIgnore.CommandText = "insert or ignore into files values(?,?,?,?)";
+      commandInsertOrIgnore.CommandText = "insert or ignore into files values(?,?,?)";
 
       commandGetFiles = dbConnection.CreateCommand();
       commandGetFiles.CommandText = "select * from files";
@@ -179,13 +175,8 @@ namespace mybox {
 
       DbReader reader = commandGetFiles.ExecuteReader();
 
-      while (reader.Read()) {
-
-        String path = reader["path"].ToString();
-
-        files.Add(path, new MyFile(path, char.Parse(reader["type"].ToString()), Int64.Parse(reader["modtime"].ToString()), Int64.Parse(reader["updatetime"].ToString())));
-
-      }
+      while (reader.Read())
+        files.Add(reader["path"].ToString(), new MyFile(reader["path"].ToString(), char.Parse(reader["type"].ToString()), Int64.Parse(reader["modtime"].ToString())/*, Int64.Parse(reader["updatetime"].ToString())*/));
 
       return files;
     }
@@ -200,8 +191,6 @@ namespace mybox {
       paramPath.Value = file.name;
       paramType.Value = file.type.ToString(); // to ensure it is stored as a char/string instead of a numeric value
       paramModtime.Value = file.modtime;
-      paramUpdatetime.Value = Common.NowUtcLong();  // is this value needed in the DB?
-
       commandInsertOrReplace.ExecuteNonQuery();
 
       return true;
@@ -236,12 +225,9 @@ namespace mybox {
 
       foreach (MyFile file in fileList) {
 
-        //preparedInsert = connection.prepareStatement("insert or ignore into archive values(?,?,?,?);");
-
         paramPath.Value = file.name;
         paramType.Value = file.type.ToString(); // to ensure it is stored as a char/string instead of a numeric value
         paramModtime.Value = file.modtime;
-        paramUpdatetime.Value = Common.NowUtcLong();  // is this value needed in the DB?
 
         commandInsertOrIgnore.ExecuteNonQuery();
       }
