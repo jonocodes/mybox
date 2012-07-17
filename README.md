@@ -8,7 +8,7 @@ Introduction
 ------------
 Mybox is a centralized file hosting and synchronization system. The goal is for it to be an open source alternative to Dropbox - both the client and server components. One server can host multiple accounts and each account can be used on multiple computers, where all files are automatically kept in sync across those computers.
 
-This version of Mybox makes use of Owncloud on the server side.
+This version of Mybox makes use of [Owncloud](http://owncloud.org) on the server side.
 
 See the [wiki](https://github.com/jonocodes/mybox/wiki) for more details on [usage](https://github.com/jonocodes/mybox/wiki/Usage), [development](https://github.com/jonocodes/mybox/wiki/Development) and [the motivation](https://github.com/jonocodes/mybox/wiki/Project-Goals) behind this project.
 
@@ -31,9 +31,7 @@ Requirements (Client)
 
 Quickstart
 ----------
-Nothing needs to be installed. Mybox can be run in user mode without administrative privileges. Here is how get it going in Linux.
-
-Start by building the solution with MonoDevelop, Visual Studio or xbuild.
+Here is how get it going in Linux. Start by building the solution with MonoDevelop, Visual Studio or xbuild.
 
 ### On the server machine ###
 
@@ -59,4 +57,8 @@ Run the client
       $ mono Client.exe
 
 You should now have a ~/Mybox directory which will be automatically synchronized to the server.
+
+### View files on server ###
+
+To see you files in the Owncloud web interface you should be able to visit your server address in a web browser.
 
