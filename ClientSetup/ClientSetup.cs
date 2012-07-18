@@ -37,8 +37,6 @@ namespace mybox {
     private String password = null;
     private String configDir = null;
 
-    //private String configFile = Client.configFile;//TODO: make this setable during gatherInput
-
 
     private void gatherInput() {
 
@@ -69,7 +67,7 @@ namespace mybox {
         Common.ExitError();
       }
 
-      Console.Write("Email ["+ account.User +"]: ");
+      Console.Write("User ["+ account.User +"]: ");
       input = Console.ReadLine();
       if (input != String.Empty) account.User = input;
 
@@ -87,8 +85,8 @@ namespace mybox {
         file.WriteLine("[settings]");
         file.WriteLine("serverName=" + account.ServerName);
         file.WriteLine("serverPort=" + account.ServerPort.ToString());
-        file.WriteLine("email=" + account.User);
-        file.WriteLine("salt=" + account.Salt);
+        file.WriteLine("user=" + account.User);
+//        file.WriteLine("salt=" + account.Salt);
         file.WriteLine("directory=" + account.Directory);
       }
 
@@ -114,8 +112,8 @@ namespace mybox {
       account = new ClientAccount();
       account.ServerName = "localhost";
       account.ServerPort = Common.DefaultCommunicationPort;
-      account.User = "jono";
-      password = "password";
+      account.User = "test";
+      password = "badpassword";
 
       configDir = ClientServerConnection.DefaultConfigDir;
 

@@ -269,11 +269,11 @@ namespace mybox {
       try {
 
         // only load the config, if it has not been loaded once already
-        if (clientServerConnection == null || clientServerConnection.Account.Email == null || clientServerConnection.Account.Email == string.Empty) {
+        if (clientServerConnection == null || clientServerConnection.Account.User == null || clientServerConnection.Account.User == string.Empty) {
           ClientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
           clientServerConnection = new ClientServerConnection();
           clientServerConnection.LoadConfig(ClientServerConnection.ConfigFile);
-          labelAccount.Text = "Account: " + clientServerConnection.Account.Email;
+          labelAccount.Text = "Account: " + clientServerConnection.Account.User;
         }
 
         clientServerConnection.Start();

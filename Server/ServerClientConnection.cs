@@ -238,13 +238,13 @@ namespace mybox {
 
           Dictionary<string, string> attachInput = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
 
-          String email = attachInput["email"];
+          String user = attachInput["user"];
           //        String password = (String)attachInput.get("password");
 
           Dictionary<string, string> jsonOut = new Dictionary<string, string>();
           jsonOut.Add("serverMyboxVersion", Common.AppVersion);
 
-          if (attachAccount(email)) {
+          if (attachAccount(user)) {
             jsonOut.Add("status", "success");
             //jsonOut.Add("quota", Account.quota.ToString());
             //jsonOut.Add("salt", Account.salt);

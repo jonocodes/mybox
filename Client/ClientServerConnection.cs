@@ -47,8 +47,8 @@ namespace mybox {
     public int ServerPort = Common.DefaultCommunicationPort;
     public String User = null;
     public String Directory = ClientServerConnection.DefaultClientDir;
-    public String Salt = null;
-    public String EncryptedPassword = null;
+    //public String Salt = null;
+    //public String EncryptedPassword = null;
   }
 
   /// <summary>
@@ -237,11 +237,13 @@ namespace mybox {
       try {
         IniParser iniParser = new IniParser(configFile);
 
+        // turn these strings into constants that can be referred to
+
         account.ServerName = iniParser.GetSetting("settings", "serverName"); // returns NULL when not found
         account.ServerPort = int.Parse(iniParser.GetSetting("settings", "serverPort"));
-        account.User = iniParser.GetSetting("settings", "email");
+        account.User = iniParser.GetSetting("settings", "user");
         account.Directory = iniParser.GetSetting("settings", "directory");
-        account.Salt = iniParser.GetSetting("settings", "salt");
+        //account.Salt = iniParser.GetSetting("settings", "salt");
       } catch (FileNotFoundException e) {
         throw new Exception(e.Message);
       }
@@ -256,7 +258,7 @@ namespace mybox {
       }
 
       if (account.User == null || account.User == string.Empty) {
-        throw new Exception("Unable to determine email");
+        throw new Exception("Unable to determine user id");
       }
 
       if (account.Directory == null)
@@ -837,7 +839,7 @@ namespace mybox {
       listenToServer();
 
       Dictionary<string, string> outArgs = new Dictionary<string, string>();
-      outArgs.Add("email", account.User);
+      outArgs.Add("user", account.User);
       //    jsonOut.put("password", password);
 
       String jsonOut = JsonConvert.SerializeObject(outArgs);
@@ -931,7 +933,7 @@ namespace mybox {
       account.ServerPort = serverPort;
       account.User = user;
       account.Directory = dataDir;
-      account.Salt = "0"; // temp hack
+//      account.Salt = "0"; // temp hack
 
       writeMessage("Establishing connection to port " + serverPort + ". Please wait ...");
 

@@ -228,7 +228,6 @@ namespace mybox {
       return Convert.ToBase64String(data);
     }
 
-
     /// <summary>
     /// Gets a recursive listing of files from a directory
     /// </summary>

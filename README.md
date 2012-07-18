@@ -37,13 +37,15 @@ Here is how get it going in Linux. Start by building the solution with MonoDevel
 
 Install and configure [Owncloud](http://owncloud.org/support/install/)
 
+Create a user account in Owncloud and then log into the web interface once as that user so the account gets fully initialized.
+
 Configure Mybox server
 
       $ mono ServerSetup.exe
 
 Start the Mybox server process as the same user who hosts the Owncloud files
 
-      $ sudo -u http mono Server.exe -c /home/me/.mybox/mybox_server.ini
+      $ sudo -u http mono Server.exe -c ~/.mybox/mybox_server.ini
 
 
 ### On the client machine ###
