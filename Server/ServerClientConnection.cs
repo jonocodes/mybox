@@ -87,12 +87,20 @@ namespace mybox {
       }
     }
 
+    public void StopListener() {
+      socket.Close();
+      socket = null;
+    }
+
     /// <summary>
     /// Close the connection
     /// </summary>
     private void close() {
 
+//      Console.WriteLine("close called on server " + server + " eq " + (server != null));
+
       if (server != null) {
+//        Console.WriteLine("removing connection");
         server.RemoveConnection(handle);
       }
     }
@@ -111,21 +119,28 @@ namespace mybox {
     /// <summary>
     /// Attempt to authenticate the client via credentials. If it matches an account on the server return true.
     /// </summary>
-    /// <param name="email"></param>
+    /// <param name="uid"></param>
+    /// <param name="password"></param>
     /// <returns></returns>
-    private bool attachAccount(String uid) {
+    private bool attachAccount(String uid, String password) {
 
       Account = server.ownCloudDB.GetAccountByID(uid);
 
       if (Account == null) {
-        Console.WriteLine("Account does not exist " + uid); // TODO: return false?
+        Console.WriteLine("Account does not exist: " + uid); // TODO: return false?
+        return false;
+      }
+
+      //Console.WriteLine("checking password " + password + " " + Account.password);
+      if (!Server.CheckPassword(password, Account.password)) {
+        Console.WriteLine("Password incorrect for: " + uid);
         return false;
       }
 
       dataDir = Server.GetAbsoluteDataDirectory(Account);
 
       if (!Directory.Exists(dataDir)) {
-        Console.WriteLine("Unable to find data directory for " + uid);
+        Console.WriteLine("Unable to find data directory for: " + uid);
         return false;
       }
 
@@ -236,15 +251,17 @@ namespace mybox {
 
           String args = Common.ReceiveString(socket);
 
-          Dictionary<string, string> attachInput = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
+          Console.WriteLine("received " + args);
 
-          String user = attachInput["user"];
-          //        String password = (String)attachInput.get("password");
+          List<string> attachInput = JsonConvert.DeserializeObject<List<string>>(args);
+
+          String user = attachInput[0];
+          String password = attachInput[1];
 
           Dictionary<string, string> jsonOut = new Dictionary<string, string>();
           jsonOut.Add("serverMyboxVersion", Common.AppVersion);
 
-          if (attachAccount(user)) {
+          if (attachAccount(user, password)) {
             jsonOut.Add("status", "success");
             //jsonOut.Add("quota", Account.quota.ToString());
             //jsonOut.Add("salt", Account.salt);
@@ -253,8 +270,9 @@ namespace mybox {
           }
           else {
             jsonOut.Add("status", "failed");
-            jsonOut.Add("error", "invalid account");
+            jsonOut.Add("error", "login invalid");
 
+            close ();
             // TODO: disconnect the client here
           }
 

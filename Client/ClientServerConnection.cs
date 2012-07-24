@@ -48,7 +48,7 @@ namespace mybox {
     public String User = null;
     public String Directory = ClientServerConnection.DefaultClientDir;
     //public String Salt = null;
-    //public String EncryptedPassword = null;
+    public String Password = null;
   }
 
   /// <summary>
@@ -185,6 +185,7 @@ namespace mybox {
       setStatus(ClientStatus.DISCONNECTED);
     }
 
+
     /// <summary>
     /// Connect to the server and perform a full sync
     /// </summary>
@@ -237,13 +238,14 @@ namespace mybox {
       try {
         IniParser iniParser = new IniParser(configFile);
 
-        // turn these strings into constants that can be referred to
+        // TODO: turn these strings into constants that can be referred to
 
         account.ServerName = iniParser.GetSetting("settings", "serverName"); // returns NULL when not found
         account.ServerPort = int.Parse(iniParser.GetSetting("settings", "serverPort"));
         account.User = iniParser.GetSetting("settings", "user");
         account.Directory = iniParser.GetSetting("settings", "directory");
         //account.Salt = iniParser.GetSetting("settings", "salt");
+        account.Password = iniParser.GetSetting("settings", "password");
       } catch (FileNotFoundException e) {
         throw new Exception(e.Message);
       }
@@ -838,13 +840,16 @@ namespace mybox {
 
       listenToServer();
 
-      Dictionary<string, string> outArgs = new Dictionary<string, string>();
-      outArgs.Add("user", account.User);
-      //    jsonOut.put("password", password);
+      List<string> outArgs = new List<string>();
+      outArgs.Add(account.User);
+      outArgs.Add(account.Password);
 
       String jsonOut = JsonConvert.SerializeObject(outArgs);
 
+      Console.WriteLine("jsonOut: "+ jsonOut);
+
       if (!serverDiscussion(Signal.attachaccount, Signal.attachaccount_response, jsonOut)) {
+        writeMessage("Unable to attach account");
         throw new Exception("Unable to attach account");
       }
 
@@ -918,28 +923,18 @@ namespace mybox {
     /// <summary>
     /// Initiates the client mode for just connecting to get the account
     /// </summary>
-    /// <param name="serverName"></param>
-    /// <param name="serverPort"></param>
-    /// <param name="user"></param>
-    /// <param name="dataDir"></param>
     /// <returns></returns>
-    public ClientAccount StartGetAccountMode(String serverName, int serverPort, String user, String dataDir) {
+    public void StartGetAccountMode(ClientAccount account) {
 
-      if (serverName == null) {
+      if (account.ServerName == null) {
         throw new Exception("Client not configured");
       }
 
-      account.ServerName = serverName;
-      account.ServerPort = serverPort;
-      account.User = user;
-      account.Directory = dataDir;
-//      account.Salt = "0"; // temp hack
+      this.account = account;
 
-      writeMessage("Establishing connection to port " + serverPort + ". Please wait ...");
+      writeMessage("Establishing connection to port " + account.ServerPort + ". Please wait ...");
 
       attemptConnection(5);
-
-      return account;
     }
 
     /// <summary>
@@ -1151,13 +1146,17 @@ namespace mybox {
             JsonConvert.DeserializeObject<Dictionary<string, string>>(Common.ReceiveString(socket));
 
           if (jsonMap["status"] != "success") {// TODO: change to signal
-            throw new Exception("Unable to attach account. Server response: " + jsonMap["error"]);
+            writeMessage("Unable to attach account. Server response: " + jsonMap["error"]);
+            // TODO: catch these exceptions above somewhere
+            //throw new Exception("Unable to attach account. Server response: " + jsonMap["error"]);
+            //socket.Close();
+            Stop();
           }
           else {
             //writeMessage("set account salt to: " + account.Salt);
 
             if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
-              throw new Exception("Client and Server Mybox versions do not match");
+              writeMessage("Client and Server Mybox versions do not match");
             }
           }
 

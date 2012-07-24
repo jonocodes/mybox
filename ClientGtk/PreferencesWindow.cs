@@ -31,7 +31,7 @@ public partial class PreferencesWindow : Gtk.Window {
   }
 
 
-  private delegate void setStatusHandler(mybox.ClientStatus status);
+//  private delegate void setStatusHandler(mybox.ClientStatus status);
 
   private void setStatus(mybox.ClientStatus status) {
     if (status == mybox.ClientStatus.ERROR)

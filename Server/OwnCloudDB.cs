@@ -87,7 +87,7 @@ namespace mybox {
 
       return fileList;
     }
-
+    /*
     private String md5Hash (String input) {
       String result = "";
     
@@ -97,7 +97,7 @@ namespace mybox {
     
       return result.Replace ("-", String.Empty).ToLower();
     }
-
+     */
     /// <summary>
     /// Update or insert a new entry for the file into the database
     /// </summary>
@@ -125,22 +125,23 @@ namespace mybox {
       } else {
         // if the entry does not exist, insert it instead of updating it
 
-        string parentPath = path.Substring(0, path.LastIndexOf('/'));
+//        string parentPath = path.Substring(0, path.LastIndexOf('/'));
 
-        string md5parent = md5Hash (parentPath);
-        string path_hash = md5Hash (path);
+//        string md5parent = Common.Md5Hash(parentPath); //md5Hash (parentPath);
+//        string path_hash = Common.Md5Hash(path); //md5Hash (path);
 
-        long size = f.Length;
+//        long size = f.Length;
         long ctime =  Common.DateTimeToUnixTimestamp(f.CreationTimeUtc);
 
-        string name = f.Name;
+//        string name = f.Name;
   
         DbCommand command_getParent = dbConnection.CreateCommand ();
-        command_getParent.CommandText = "SELECT id FROM oc_fscache WHERE path_hash='" + md5parent + "'";
+        command_getParent.CommandText = "SELECT id FROM oc_fscache WHERE path_hash='"
+          + Common.Md5Hash(path.Substring(0, path.LastIndexOf('/'))) + "'";
 
         int parentId = Convert.ToInt32 (command_getParent.ExecuteScalar ());
   
-        string mimetype = MIMEAssistant.GetMIMEType(name);
+        string mimetype = MIMEAssistant.GetMIMEType(f.Name);
         string mimepart = mimetype.Substring(0, mimetype.LastIndexOf('/'));
         string user = thisAccount.uid;
         bool writable = true; //!f.IsReadOnly;
@@ -149,7 +150,7 @@ namespace mybox {
   
         command.CommandText = String.Format("INSERT INTO oc_fscache (parent, name, path, path_hash, size, mtime, ctime, mimetype, mimepart,`user`,writable,encrypted,versioned) "
                                             + "VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}', '{10}', '{11}', '{12}')",
-                                            parentId, name, path, path_hash, size, mtime, ctime, mimetype, mimepart, user, writable, encrypted, versioned);
+                                            parentId, f.Name, path, Common.Md5Hash(path), f.Length, mtime, ctime, mimetype, mimepart, user, writable, encrypted, versioned);
       }
 
       return (command.ExecuteNonQuery() == 1);

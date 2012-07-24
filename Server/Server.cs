@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Data;
+using System.Diagnostics;
 using Newtonsoft.Json;
 
 namespace mybox {
@@ -97,6 +98,44 @@ namespace mybox {
     }
 
     /// <summary>
+    /// Checks a raw password against the stored hashed version
+    /// </summary>
+    /// <returns>
+    /// True if the check passes
+    /// </returns>
+    /// <param name='pwordOrig'>
+    /// Raw password
+    /// </param>
+    /// <param name='pwordHashed'>
+    /// Hashed password
+    /// </param>
+    public static bool CheckPassword(String pwordOrig, String pwordHashed) {
+
+      // TODO: this depends on an external PHP script. remove this dependency
+
+      string phpPasswordHashLocation = "/srv/http/owncloud/3rdparty/phpass/PasswordHash.php";
+
+      string input = "-r 'require_once \"" + phpPasswordHashLocation +"\"; if (!isset($argv) || count($argv) != 2) { $hasher=new PasswordHash(8,(CRYPT_BLOWFISH!=1));  if ( $hasher->CheckPassword($argv[1], $argv[2]) === true) { print \"password check passed\n\"; } }' "+ pwordOrig +" '"+ pwordHashed +"'";
+
+      Process myProcess = new Process();
+      ProcessStartInfo myProcessStartInfo = new ProcessStartInfo("php", input);
+      myProcessStartInfo.UseShellExecute = false;
+      myProcessStartInfo.RedirectStandardOutput = true;
+      myProcess.StartInfo = myProcessStartInfo;
+
+      myProcess.Start();
+      StreamReader myStreamReader = myProcess.StandardOutput;
+
+      string line;
+
+      while ((line = myStreamReader.ReadLine()) != null)
+        if (line.Contains("password check passed"))
+          return true;
+
+      return false;
+    }
+
+    /// <summary>
     /// Set member variables from config file
     /// </summary>
     /// <param name="configFile"></param>
@@ -138,6 +177,18 @@ namespace mybox {
         HashSet<IntPtr> thisMap = new HashSet<IntPtr>();
         thisMap.Add(handle);
         multiClientMap[id] = thisMap;
+      }
+    }
+
+    public void RemoveFromMultiMap(String id, IntPtr handle) {
+
+      if (multiClientMap.ContainsKey(id)) {
+        HashSet<IntPtr> thisMap = multiClientMap[id];
+
+        if (thisMap.Contains(handle)) {
+          thisMap.Remove(handle);
+          multiClientMap[id] = thisMap;
+        }
       }
     }
 
@@ -187,34 +238,27 @@ namespace mybox {
     /// <param name="handle"></param>
     public void RemoveConnection(IntPtr handle) {
 
-      // update the client map
-
-      ServerClientConnection toTerminate = clients[handle];
-
-      if (toTerminate.Account != null) {
-        Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.uid + ")");
-
-        // update multimap
-        HashSet<IntPtr> thisMap = multiClientMap[toTerminate.Account.uid];
-        thisMap.Remove(handle);
-        multiClientMap[toTerminate.Account.uid] = thisMap;
-
-        // note that this does not clear entries from the multi map, it just fills them with the empty set
+      if (clients.ContainsKey(handle)) {
+  
+        ServerClientConnection toTerminate = clients[handle];
+  
+        if (toTerminate.Account != null) {
+          Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.uid + ")");
+          RemoveFromMultiMap(toTerminate.Account.uid, handle);
+        }
+        else
+          Console.WriteLine("Removing accountless client " + handle);
+        /*
+        try {
+          toTerminate.StopListener();
+        }
+        catch (IOException ioe) {
+          Console.WriteLine("Error closing thread: " + ioe);
+        }
+  */
+        // remove from list
+        clients.Remove(handle);
       }
-      else
-        Console.WriteLine("Removing accountless client " + handle);
-
-      //try {
-      //  toTerminate.stopListener();
-      //}
-      //catch (IOException ioe) {
-      //  Console.WriteLine("Error closing thread: " + ioe);
-      //}
-
-      //      Console.WriteLine("Removing client " + handle);
-
-      // remove from list
-      clients.Remove(handle);
     }
 
 

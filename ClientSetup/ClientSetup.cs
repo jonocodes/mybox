@@ -34,7 +34,6 @@ namespace mybox {
   class ClientSetup {
 
     private ClientAccount account = null;
-    private String password = null;
     private String configDir = null;
 
 
@@ -71,10 +70,10 @@ namespace mybox {
       input = Console.ReadLine();
       if (input != String.Empty) account.User = input;
 
-      Console.Write("Password [" + password + "]: "); // TODO: bullet out console entry
+      Console.Write("Password [" + account.Password + "]: "); // TODO: bullet out console entry
       input = Console.ReadLine();
-      if (input != String.Empty) password = input;
 
+      if (input != String.Empty) account.Password = input;
     }
 
     private bool saveConfig() {
@@ -83,11 +82,15 @@ namespace mybox {
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(ClientServerConnection.ConfigFile, false)) {
         file.WriteLine("[settings]");
+        // TODO: replace these inline strings with constants like CLIENT_CFG_PORT
         file.WriteLine("serverName=" + account.ServerName);
         file.WriteLine("serverPort=" + account.ServerPort.ToString());
         file.WriteLine("user=" + account.User);
 //        file.WriteLine("salt=" + account.Salt);
+        file.WriteLine("password=" + account.Password);
         file.WriteLine("directory=" + account.Directory);
+
+        Console.WriteLine("pass: " + account.Password);
       }
 
       Console.WriteLine("Config file written: " + ClientServerConnection.ConfigFile);
@@ -113,7 +116,7 @@ namespace mybox {
       account.ServerName = "localhost";
       account.ServerPort = Common.DefaultCommunicationPort;
       account.User = "test";
-      password = "badpassword";
+      account.Password = "badpassword";
 
       configDir = ClientServerConnection.DefaultConfigDir;
 
@@ -125,15 +128,12 @@ namespace mybox {
       configDir = Common.EndDirWithSlash(configDir);
     
       // attach the account to the server to get the user
-      // TODO: clean up this function and its arguments
       ClientServerConnection client = new ClientServerConnection();
 
       Console.WriteLine("client initialized. trying coonection...");
 
-      account = client.StartGetAccountMode(account.ServerName, account.ServerPort, account.User, account.Directory);
-      //client.close();
+      client.StartGetAccountMode(account);
 
-    
       // data directory
       if (!Common.CreateLocalDirectory(account.Directory)) {
         Console.WriteLine("Data directory could not be created: " + account.Directory);
