@@ -22,6 +22,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -37,9 +38,13 @@ namespace mybox {
   /// <summary>
   /// Server side database to store user accounts
   /// </summary>
-  public class OwnCloudDB {
+  public class OwnCloudDB : ServerDB {
 
     private DbConnection dbConnection = null;
+
+    // /usr/share/webapps/owncloud for new Arch installs
+    private String baseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
+    private readonly String DefaultServerDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
 
     // TODO: create prepaired statements for queries
 
@@ -50,9 +55,47 @@ namespace mybox {
     /// DB connection string.
     /// </param>
     public OwnCloudDB(string connectionString) {
+      if (connectionString == null)
+        connectionString = DefaultServerDbConnectionString;
+
       dbConnection = new MySqlConnection (connectionString);
       dbConnection.Open ();
       // todo: catch connection error
+    }
+
+    public void SetBaseDataDir(String dir) {
+      // TODO: make sure it exists and/or create it
+     baseDataDir = dir;
+    }
+
+    public String GetDataDir(ServerAccount account) {
+      return baseDataDir + account.uid + "/files/";
+    }
+
+    public bool CheckPassword(String pwordOrig, String pwordHashed) {
+
+      // TODO: this depends on an external PHP script. remove this dependency
+
+      string phpPasswordHashLocation = "/srv/http/owncloud/3rdparty/phpass/PasswordHash.php";
+
+      string input = "-r 'require_once \"" + phpPasswordHashLocation +"\"; if (!isset($argv) || count($argv) != 2) { $hasher=new PasswordHash(8,(CRYPT_BLOWFISH!=1));  if ( $hasher->CheckPassword($argv[1], $argv[2]) === true) { print \"password check passed\n\"; } }' "+ pwordOrig +" '"+ pwordHashed +"'";
+
+      Process myProcess = new Process();
+      ProcessStartInfo myProcessStartInfo = new ProcessStartInfo("php", input);
+      myProcessStartInfo.UseShellExecute = false;
+      myProcessStartInfo.RedirectStandardOutput = true;
+      myProcess.StartInfo = myProcessStartInfo;
+
+      myProcess.Start();
+      StreamReader myStreamReader = myProcess.StandardOutput;
+
+      string line;
+
+      while ((line = myStreamReader.ReadLine()) != null)
+        if (line.Contains("password check passed"))
+          return true;
+
+      return false;
     }
 
     /// <summary>
@@ -64,7 +107,7 @@ namespace mybox {
     /// <param name='thisAccount'>
     /// This account.
     /// </param>
-    public List<List<string>> GetFileListSerializable(Account thisAccount) {
+    public List<List<string>> GetFileListSerializable(ServerAccount thisAccount) {
       List<List<string>> fileList = new List<List<string>>();
 
       int startPath = ("/" + thisAccount.uid + "/files/").Length + 1;
@@ -106,10 +149,10 @@ namespace mybox {
     /// </returns>
     /// <param name='thisAccount'></param>
     /// <param name='thisFile'></param>
-    public bool UpdateFile(Account thisAccount, MyFile thisFile) {
+    public bool UpdateFile(ServerAccount thisAccount, MyFile thisFile) {
 
       string path = "/" + thisAccount.uid + "/files/" + thisFile.name;
-      string absPath = Server.baseDataDir + path;
+      string absPath = GetDataDir(thisAccount) + thisFile.name; //Server.baseDataDir + path;
       FileInfo f = new FileInfo (absPath);
       long mtime = Common.DateTimeToUnixTimestamp(f.LastWriteTimeUtc);
 
@@ -162,7 +205,7 @@ namespace mybox {
     /// <returns></returns>
     /// <param name='thisAccount'></param>
     /// <param name='filePath'></param>
-    public bool RemoveFile(Account thisAccount, String filePath) {
+    public bool RemoveFile(ServerAccount thisAccount, String filePath) {
 
       DbCommand command = dbConnection.CreateCommand();
       command.CommandText = "DELETE FROM oc_fscache WHERE path='"+ "/" + thisAccount.uid + "/files/" +filePath +"'";
@@ -217,9 +260,9 @@ namespace mybox {
     /// </summary>
     /// <param name="id"></param>
     /// <returns>null if not found</returns>
-    public Account GetAccountByID(String uid) {
+    public ServerAccount GetAccountByID(String uid) {
 
-      Account account = null;
+      ServerAccount account = null;
 
       try {
         DbCommand command = dbConnection.CreateCommand();
@@ -227,7 +270,7 @@ namespace mybox {
         DbReader reader = command.ExecuteReader();
 
         while (reader.Read())
-          account = new Account(reader["uid"].ToString(), reader["password"].ToString() );
+          account = new ServerAccount(reader["uid"].ToString(), reader["password"].ToString() );
 
         reader.Close();
       }
@@ -239,6 +282,7 @@ namespace mybox {
 
     }
 
+    /*
     /// <summary>
     /// Structure to represent a single account in the database
     /// </summary>
@@ -268,6 +312,7 @@ namespace mybox {
         return uid;
       }
     }
+    */
   }
 
 

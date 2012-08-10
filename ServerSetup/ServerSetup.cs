@@ -37,7 +37,7 @@ namespace mybox {
 //    private int defaultQuota = Server.DefaultQuota;
 
     private String configFile = Server.DefaultConfigFile;
-    private String accountsDbConnectionString = Server.DefaultAccountsDbConnectionString;
+//    private String serverDbConnectionString = Server.DefaultAccountsDbConnectionString;
 
     private void gatherInput() {
 
@@ -68,9 +68,9 @@ namespace mybox {
       // TODO: handle existing file
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
-        file.WriteLine ("[settings]");
-        file.WriteLine ("port=" + port);
-        file.WriteLine("accountsDbConnectionString=" + accountsDbConnectionString);
+        file.WriteLine("[settings]");
+        file.WriteLine(Server.CONFIG_PORT + "=" + port);
+//        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
       }
 
       Console.WriteLine ("Config file written: " + configFile);
@@ -91,8 +91,8 @@ namespace mybox {
 
       // TODO: elegently notify the user if the owncloud db is unreachable
 
-      OwnCloudDB ownCloudDB = new OwnCloudDB(accountsDbConnectionString);
-      int accounts = ownCloudDB.AccountsCount();
+      ServerDB serverDB = new OwnCloudDB(null);
+      int accounts = serverDB.AccountsCount();
       Console.WriteLine("The database contains " + accounts + " accounts");
 
       Console.WriteLine("Setup finished successfully.");

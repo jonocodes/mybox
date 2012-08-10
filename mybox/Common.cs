@@ -421,6 +421,7 @@ namespace mybox {
 
       MyFile myFile = null;
 
+
       try {
         // name length, name, data length, data
         socket.Receive(buffer, 2, 0);
@@ -444,19 +445,25 @@ namespace mybox {
 
         String absPath = baseDir + relPath;
 
-        FileStream fs = File.Create(absPath, buf_size);
+        MD5 md5 = MD5.Create();
 
-        while (fileBytesRead + buf_size <= fileLength) {
-          fileBytesRead += socket.Receive(buffer, buf_size, 0);
-          fs.Write(buffer, 0, buf_size);
+        using (FileStream fs = File.Create(absPath, buf_size)) {
+          using (CryptoStream cs = new CryptoStream(fs, md5, CryptoStreamMode.Write)) {
+
+            while (fileBytesRead + buf_size <= fileLength) {
+              fileBytesRead += socket.Receive(buffer, buf_size, 0);
+              cs.Write(buffer, 0, buf_size);
+              //md5.TransformBlock(
+            }
+
+            if (fileBytesRead < fileLength) {
+              socket.Receive(buffer, fileLength - fileBytesRead, 0);  // make sure this reads to the end
+              cs.Write(buffer, 0, fileLength - fileBytesRead);
+            }
+          }
         }
 
-        if (fileBytesRead < fileLength) {
-          socket.Receive(buffer, fileLength - fileBytesRead, 0);  // make sure this reads to the end
-          fs.Write(buffer, 0, fileLength - fileBytesRead);
-        }
-
-        fs.Close();
+        System.Console.WriteLine("got file with md5: " + BitConverter.ToString(md5.Hash));
 
         File.SetLastWriteTimeUtc(absPath, timestamp);
 

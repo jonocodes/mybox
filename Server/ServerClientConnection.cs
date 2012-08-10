@@ -44,7 +44,7 @@ namespace mybox {
     private String dataDir = null;
     private byte[] inputSignalBuffer = new byte[1];
 
-    public OwnCloudDB.Account Account = null;
+    public ServerAccount Account = null;
 
     #endregion
 
@@ -124,7 +124,7 @@ namespace mybox {
     /// <returns></returns>
     private bool attachAccount(String uid, String password) {
 
-      Account = server.ownCloudDB.GetAccountByID(uid);
+      ServerAccount Account = server.serverDB.GetAccountByID(uid);
 
       if (Account == null) {
         Console.WriteLine("Account does not exist: " + uid); // TODO: return false?
@@ -132,15 +132,15 @@ namespace mybox {
       }
 
       //Console.WriteLine("checking password " + password + " " + Account.password);
-      if (!Server.CheckPassword(password, Account.password)) {
+      if (!server.serverDB.CheckPassword(password, Account.password)) {
         Console.WriteLine("Password incorrect for: " + uid);
         return false;
       }
 
-      dataDir = Server.GetAbsoluteDataDirectory(Account);
+      dataDir = server.serverDB.GetDataDir(Account); //baseDataDir + account.uid + "/files/"; //Server.GetAbsoluteDataDirectory(Account);
 
       if (!Directory.Exists(dataDir)) {
-        Console.WriteLine("Unable to find data directory for: " + uid);
+        Console.WriteLine("Unable to find data directory: " + dataDir);
         return false;
       }
 
@@ -178,7 +178,7 @@ namespace mybox {
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
           if (newFile != null)
-            server.ownCloudDB.UpdateFile(Account, newFile);
+            server.serverDB.UpdateFile(Account, newFile);
 
           server.SpanCatchupOperation(handle, Account.uid, signal, newFile.name);
           break;
@@ -212,7 +212,7 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath))
-            server.ownCloudDB.RemoveFile(Account, relPath);
+            server.serverDB.RemoveFile(Account, relPath);
 //            index.Remove(relPath);  // TODO: check return value
 
           server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
@@ -222,7 +222,7 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            server.ownCloudDB.UpdateFile(Account, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)/*, Common.NowUtcLong()*/));
+            server.serverDB.UpdateFile(Account, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)/*, Common.NowUtcLong()*/));
           //  index.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
 
           server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
@@ -230,7 +230,7 @@ namespace mybox {
 
         case Signal.requestServerFileList:
 
-          List<List<string>> fileListToSerialize = server.ownCloudDB.GetFileListSerializable(Account);
+          List<List<string>> fileListToSerialize = server.serverDB.GetFileListSerializable(Account);
 
           String jsonOutStringFiles = JsonConvert.SerializeObject(fileListToSerialize);
 

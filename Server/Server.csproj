@@ -58,6 +58,8 @@
       <Link>Properties\CommonAssemblyInfo.cs</Link>
     </Compile>
     <Compile Include="OwnCloudDB.cs" />
+    <Compile Include="ServerDB.cs" />
+    <Compile Include="MySqlDB.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>

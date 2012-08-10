@@ -50,15 +50,21 @@ namespace mybox {
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
-    public static String AccountsDbConnectionString = null;
-    public OwnCloudDB ownCloudDB = null;
+    public static String ServerDbConnectionString = null;
+    public ServerDB serverDB = null;
 
     public static String baseDataDir = null;
 
-    public static readonly String DefaultAccountsDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
+//    public static readonly String DefaultAccountsDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
     public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/mybox_server.ini";
-    public static readonly String DefaultBaseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
+    //public static readonly String DefaultBaseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
  //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
+
+    public static readonly String CONFIG_PORT = "port";
+    public static readonly String CONFIG_DIR = "baseDataDir";
+    public static readonly String CONFIG_DBSTRING = "serverDbConnectionString";
+    // TODO: add database type (owncloud/mysql) to config file so the class can be autoloaded
+
 
     #endregion
 
@@ -73,9 +79,11 @@ namespace mybox {
 
       LoadConfig(configFile);
 
-      Console.WriteLine("database connection: " + AccountsDbConnectionString);
+//      Console.WriteLine("database connection: " + ServerDbConnectionString);
 
-      ownCloudDB = new OwnCloudDB(AccountsDbConnectionString);
+      serverDB = new OwnCloudDB(ServerDbConnectionString);
+      if (baseDataDir != null)
+        serverDB.SetBaseDataDir(Common.EndDirWithSlash(baseDataDir));
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
 
@@ -97,6 +105,7 @@ namespace mybox {
       }
     }
 
+    /*
     /// <summary>
     /// Checks a raw password against the stored hashed version
     /// </summary>
@@ -134,6 +143,7 @@ namespace mybox {
 
       return false;
     }
+    */
 
     /// <summary>
     /// Set member variables from config file
@@ -144,21 +154,21 @@ namespace mybox {
       try {
         IniParser iniParser = new IniParser(configFile);
 
-        Port = int.Parse(iniParser.GetSetting("settings", "port"));  // returns NULL when not found ?
-        baseDataDir = iniParser.GetSetting("settings", "baseDataDir");
-        AccountsDbConnectionString = iniParser.GetSetting("settings", "accountsDbConnectionString");
+        Port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
+        baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
+        ServerDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
       } catch (FileNotFoundException e) {
         Console.WriteLine(e.Message);
         Common.ExitError();
       }
 
-      if (AccountsDbConnectionString == null)
-        AccountsDbConnectionString = DefaultAccountsDbConnectionString;
+//      if (ServerDbConnectionString == null)
+//        ServerDbConnectionString = DefaultAccountsDbConnectionString;
 
-      if (baseDataDir == null)
-        baseDataDir = DefaultBaseDataDir;
+//      if (baseDataDir == null)
+//        baseDataDir = DefaultBaseDataDir;
 
-      baseDataDir = Common.EndDirWithSlash(baseDataDir);
+//      baseDataDir = Common.EndDirWithSlash(baseDataDir);
     }
 
     /// <summary>
@@ -191,16 +201,16 @@ namespace mybox {
         }
       }
     }
-
+    /*
     /// <summary>
     /// Get the absolute path to the data directory for an account on the server. It should end with a slash.
     /// </summary>
     /// <param name="account"></param>
     /// <returns></returns>
-    public static String GetAbsoluteDataDirectory(OwnCloudDB.Account account) {
+    public static String GetAbsoluteDataDirectory(ServerAccount account) {
       return baseDataDir + account.uid + "/files/";
     }
-
+     */
     /// <summary>
     /// Send catchup commands to all connected clients attached to the same account
     /// </summary>
