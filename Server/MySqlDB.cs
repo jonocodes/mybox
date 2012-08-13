@@ -30,11 +30,12 @@ namespace mybox
       try {
         dbConnection = new MySqlConnection (connectionString);
         dbConnection.Open ();
-        // todo: initialize DB structure
-        
-        /*
-        
-CREATE TABLE IF NOT EXISTS `files` (
+
+        // TODO: "CREATE DATABASE IF NOT EXISTS `mybox`;";
+
+        DbCommand command = dbConnection.CreateCommand();
+        command.CommandText = 
+@"CREATE TABLE IF NOT EXISTS `files` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `path` varchar(512) NOT NULL,
   `user` int(10) NOT NULL,
@@ -45,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `files` (
   `type` varchar(1) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `user` (`user`)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 AUTO_INCREMENT=2 ;
+);
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -55,10 +56,17 @@ CREATE TABLE IF NOT EXISTS `users` (
   `salt` varchar(75) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB  DEFAULT CHARSET=utf8 AUTO_INCREMENT=2 ;
+);";
 
-        */
-        
+        command.ExecuteNonQuery();
+
+#if DEBUG
+        dbConnection.CreateCommand();
+        command.CommandText = @"INSERT IGNORE INTO `mybox`.`users` (`name`,`password`) VALUES ('test', 'badpassword');";
+        command.ExecuteNonQuery();
+#endif
+
+
       } catch (Exception) {
         throw new Exception("Error connecting to database.");
       }

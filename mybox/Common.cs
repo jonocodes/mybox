@@ -61,7 +61,7 @@ namespace mybox {
 
     public String name; // TODO: make this a getter property. and perhaps change to 'path'
 		public long modtime;  // when the file data was last modified
-    public char type; // d=directory, f=file, l=link (link not yet supported)
+    public char type; // d=directory, f=file, l=link (link not yet supported) // TODO: change to enum
 
     public long size;
     public String checksum;
@@ -94,6 +94,13 @@ namespace mybox {
     private static int buf_size = 1024;
 
     private static DateTime epoch = new DateTime(1970,1,1,0,0,0,0);
+
+    /// <summary>
+    /// The system temp directory
+    /// </summary>
+    public static readonly String TempDir = Path.GetTempPath();
+
+    private static Random _random = new Random();
 
     /// <summary>
     /// The user's system home directory primarialy used for determining where the config directory is
@@ -451,7 +458,6 @@ namespace mybox {
 
       MyFile myFile = null;
 
-
       try {
         // receive order: name length, name, timestamp, checksum, data length, data
         
@@ -469,26 +475,27 @@ namespace mybox {
         socket.Receive(buffer, 16, 0);
         String checksumString = BitConverter.ToString(buffer, 0, 16).Replace("-", String.Empty).ToLower();
 
-        Console.WriteLine("Receiving file: " + relPath + " " + DateTimeToUnixTimestamp(timestamp)
-           + " " + checksumString);
+        String tempLocation = TempDir + Path.DirectorySeparatorChar + "mb" +
+          DateTimeToUnixTimestamp(DateTime.Now).ToString() + _random.Next(0, 26).ToString() + _random.Next(0, 26).ToString();
 
+        Console.WriteLine("Receiving file: " + relPath);
+        Console.WriteLine("  timestmp:" + DateTimeToUnixTimestamp(timestamp) + " checksum: " + checksumString);
+        Console.WriteLine("  temp: " + tempLocation);
+        
         // data
         socket.Receive(buffer, 4, 0); // assumes filesize cannot be larger then int bytes, 4GB?
         Int32 fileLength = BitConverter.ToInt32(buffer, 0);
 
         int fileBytesRead = 0;
 
-        String absPath = baseDir + relPath;
-
         MD5 md5 = MD5.Create();
 
-        using (FileStream fs = File.Create(absPath, buf_size)) {
+        using (FileStream fs = File.Create(tempLocation, buf_size)) {
           using (CryptoStream cs = new CryptoStream(fs, md5, CryptoStreamMode.Write)) {
 
             while (fileBytesRead + buf_size <= fileLength) {
               fileBytesRead += socket.Receive(buffer, buf_size, 0);
               cs.Write(buffer, 0, buf_size);
-              //md5.TransformBlock(
             }
 
             if (fileBytesRead < fileLength) {
@@ -498,12 +505,20 @@ namespace mybox {
           }
         }
 
-        // TODO: save to temp location ie /tmp/123ljlksdf and varify md5 before moving saving file to dir
-        System.Console.WriteLine("got file with md5: " + BitConverter.ToString(md5.Hash));
+        String calculatedChecksum = BitConverter.ToString(md5.Hash).Replace("-", String.Empty).ToLower();
 
-        File.SetLastWriteTimeUtc(absPath, timestamp);
+        // network fault tolerance, varify checksum before moving file from temp to dir
+        System.Console.WriteLine("  calculated checksum: " + calculatedChecksum);
 
-        myFile = new MyFile(relPath, 'f', timestamp.Ticks, fileLength, checksumString);
+        if (calculatedChecksum == checksumString) {
+
+          File.Move(tempLocation, baseDir + relPath);
+          File.SetLastWriteTimeUtc(baseDir + relPath, timestamp);
+
+          myFile = new MyFile(relPath, 'f', timestamp.Ticks, fileLength, checksumString);
+        }
+        else
+          throw new Exception("Received file checksum did not match");
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);

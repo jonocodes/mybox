@@ -49,7 +49,7 @@ namespace mybox {
     private Dictionary<String, HashSet<IntPtr>> multiClientMap = new Dictionary<String, HashSet<IntPtr>>();
 
     // map of userId => FileIndex. this is here so we dont have to make per client DB connections
-    public Dictionary<String, FileIndex> FileIndexes = new Dictionary<String, FileIndex>();
+    //public Dictionary<String, FileIndex> FileIndexes = new Dictionary<String, FileIndex>();
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
@@ -96,7 +96,7 @@ namespace mybox {
         clients.Add(listenerSocket.Handle, client);
       }
     }
-
+    /*
     public static HashSet<Type> GetBackends() {
 
       HashSet<Type> result = new HashSet<Type>();
@@ -108,7 +108,7 @@ namespace mybox {
 
       return result;
     }
-
+    */
     /// <summary>
     /// Set member variables from config file
     /// </summary>
