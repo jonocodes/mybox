@@ -44,7 +44,7 @@ namespace mybox {
     private String dataDir = null;
     private byte[] inputSignalBuffer = new byte[1];
 
-    public ServerAccount Account = null;
+    public ServerUser User = null;
 
     #endregion
 
@@ -119,32 +119,36 @@ namespace mybox {
     /// <summary>
     /// Attempt to authenticate the client via credentials. If it matches an account on the server return true.
     /// </summary>
-    /// <param name="uid"></param>
+    /// <param name="userName"></param>
     /// <param name="password"></param>
     /// <returns></returns>
-    private bool attachAccount(String uid, String password) {
+    private bool attachUser(String userName, String password) {
 
-      ServerAccount Account = server.serverDB.GetAccountByID(uid);
+      User = server.serverDB.GetUserByName(userName);
 
-      if (Account == null) {
-        Console.WriteLine("Account does not exist: " + uid); // TODO: return false?
+      if (User == null) {
+        Console.WriteLine("User does not exist: " + userName); // TODO: return false?
         return false;
       }
 
-      //Console.WriteLine("checking password " + password + " " + Account.password);
-      if (!server.serverDB.CheckPassword(password, Account.password)) {
-        Console.WriteLine("Password incorrect for: " + uid);
+      if (!server.serverDB.CheckPassword(password, User.password)) {
+        Console.WriteLine("Password incorrect for: " + userName);
         return false;
       }
 
-      dataDir = server.serverDB.GetDataDir(Account); //baseDataDir + account.uid + "/files/"; //Server.GetAbsoluteDataDirectory(Account);
+      dataDir = server.serverDB.GetDataDir(User);
 
       if (!Directory.Exists(dataDir)) {
-        Console.WriteLine("Unable to find data directory: " + dataDir);
-        return false;
+      
+        try {
+          Directory.CreateDirectory(dataDir); // TODO: make recursive
+        } catch (Exception) {
+          Console.WriteLine("Unable to find or create data directory: " + dataDir);
+          return false;
+        }
       }
 
-      Console.WriteLine("Attached account " + uid + " to handle " + handle);
+      Console.WriteLine("Attached account " + userName + " to handle " + handle);
       Console.WriteLine("Local server storage in: " + dataDir);
 
       return true;
@@ -178,9 +182,9 @@ namespace mybox {
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
           if (newFile != null)
-            server.serverDB.UpdateFile(Account, newFile);
+            server.serverDB.UpdateFile(User, newFile);
 
-          server.SpanCatchupOperation(handle, Account.uid, signal, newFile.name);
+          server.SpanCatchupOperation(handle, User.id, signal, newFile.name);
           break;
 
         //case Signal.clientWantsToSend:
@@ -212,25 +216,25 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath))
-            server.serverDB.RemoveFile(Account, relPath);
+            server.serverDB.RemoveFile(User, relPath);
 //            index.Remove(relPath);  // TODO: check return value
 
-          server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
+          server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.createDirectoryOnServer:
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            server.serverDB.UpdateFile(Account, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)/*, Common.NowUtcLong()*/));
-          //  index.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), Common.NowUtcLong()));
+            server.serverDB.UpdateFile(User, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)
+            , 0, "0"));
 
-          server.SpanCatchupOperation(handle, Account.uid, signal, relPath);
+          server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
 
-          List<List<string>> fileListToSerialize = server.serverDB.GetFileListSerializable(Account);
+          List<List<string>> fileListToSerialize = server.serverDB.GetFileListSerializable(User);
 
           String jsonOutStringFiles = JsonConvert.SerializeObject(fileListToSerialize);
 
@@ -255,18 +259,18 @@ namespace mybox {
 
           List<string> attachInput = JsonConvert.DeserializeObject<List<string>>(args);
 
-          String user = attachInput[0];
+          String userName = attachInput[0];
           String password = attachInput[1];
 
           Dictionary<string, string> jsonOut = new Dictionary<string, string>();
           jsonOut.Add("serverMyboxVersion", Common.AppVersion);
 
-          if (attachAccount(user, password)) {
+          if (attachUser(userName, password)) {
             jsonOut.Add("status", "success");
             //jsonOut.Add("quota", Account.quota.ToString());
             //jsonOut.Add("salt", Account.salt);
 
-            server.AddToMultiMap(Account.uid, handle);
+            server.AddToMultiMap(User.id, handle);
           }
           else {
             jsonOut.Add("status", "failed");

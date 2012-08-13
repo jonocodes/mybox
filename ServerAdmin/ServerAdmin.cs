@@ -32,13 +32,11 @@ namespace mybox {
   /// </summary>
   class ServerAdmin {
 
-    private ServerDB serverDb = null;
+    private IServerDB serverDb = null;
 
     public ServerAdmin(String configFile) {
 
-      Server.LoadConfig(configFile);
-
-      serverDb = new OwnCloudDB(Server.ServerDbConnectionString);
+      serverDb = Server.LoadConfig(configFile);
 
       Console.WriteLine("Starting ServerAdmin command line utility...");
 
@@ -58,7 +56,7 @@ namespace mybox {
 
         switch (choice) {
           case 'l':
-            serverDb.ShowAccounts();
+            serverDb.ShowUsers();
             break;
         }
       }

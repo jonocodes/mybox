@@ -49,7 +49,7 @@ namespace mybox {
       input = Console.ReadLine();
       if (input != String.Empty) account.Directory = input;
 
-      Console.Write("Server name ["+ account.ServerName +"]: ");
+      Console.Write("Server ["+ account.ServerName +"]: ");
       input = Console.ReadLine();
       if (input != String.Empty) account.ServerName = input;
 

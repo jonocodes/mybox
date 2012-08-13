@@ -63,9 +63,9 @@ namespace mybox {
     public static readonly String DefaultClientDir = Common.UserHome + "/Mybox/";
     public static readonly String DefaultConfigDir = Common.UserHome + "/.mybox/";
 
-    private const String configFileName = "mybox_client.ini";
-    private const String logFileName = "mybox_client.log";
-    private const String indexFileName = "mybox_client_index.db";
+    private const String configFileName = "client.ini";
+    private const String logFileName = "client.log";
+    private const String indexFileName = "client_index.db";
 
     private static String configFile = null;
     private static String logFile = null;
@@ -325,7 +325,7 @@ namespace mybox {
         sendCommandToServer(Signal.createDirectoryOnServer);
         Common.SendString(socket, name);
         // TODO: wait for reply to know that it was created on server before updating index
-        fileIndex.Update(new MyFile(name, 'd', Common.GetModTime(dataDir + name)/*, Common.NowUtcLong()*/));
+        fileIndex.Update(new MyFile(name, 'd', Common.GetModTime(dataDir + name), 0, "0"));
       } catch (Exception e) {
         writeMessage("error requesting server directory create: " + e.Message);
       }
@@ -721,7 +721,8 @@ namespace mybox {
 
           case Signal.createDirectoryOnClient:
             if (Common.CreateLocalDirectory(dataDir + signalItem.Key))
-              fileIndex.Update(new MyFile(signalItem.Key, 'd', Common.GetModTime(dataDir + signalItem.Key)/*, Common.NowUtcLong()*/));
+              fileIndex.Update(new MyFile(signalItem.Key, 'd', Common.GetModTime(dataDir + signalItem.Key),
+              0, "0"));
             break;
 
           default:
@@ -1118,7 +1119,7 @@ namespace mybox {
           // catchup operation
           relPath = Common.ReceiveString(socket);
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)/*, Common.NowUtcLong()*/));
+            fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), 0, "0"));
           
           break;
 
@@ -1133,7 +1134,8 @@ namespace mybox {
 
           foreach(List<string> fileItem in fileDict){
             // TODO: try, catch for parse errors etc
-            S.Add(fileItem[0], new MyFile(fileItem[0], char.Parse(fileItem[2]), long.Parse(fileItem[1])));
+            S.Add(fileItem[0], new MyFile(fileItem[0], char.Parse(fileItem[1]), long.Parse(fileItem[2]),
+             long.Parse(fileItem[3]), fileItem[4] ));
           }
 
           break;

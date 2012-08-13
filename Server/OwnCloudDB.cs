@@ -38,13 +38,15 @@ namespace mybox {
   /// <summary>
   /// Server side database to store user accounts
   /// </summary>
-  public class OwnCloudDB : ServerDB {
+  public class OwnCloudDB : IServerDB {
 
     private DbConnection dbConnection = null;
 
+		// TODO: figure out how to set the owncloud path dynamically. perhaps from http.conf
+
     // /usr/share/webapps/owncloud for new Arch installs
     private String baseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
-    private readonly String DefaultServerDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
+    private readonly String defaultConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
 
     // TODO: create prepaired statements for queries
 
@@ -54,22 +56,44 @@ namespace mybox {
     /// <param name='connectionString'>
     /// DB connection string.
     /// </param>
-    public OwnCloudDB(string connectionString) {
+    public OwnCloudDB() {
+    }
+
+    public void Connect(String connectionString, String baseDataDir) {
       if (connectionString == null)
-        connectionString = DefaultServerDbConnectionString;
+        connectionString = defaultConnectionString;
 
-      dbConnection = new MySqlConnection (connectionString);
-      dbConnection.Open ();
-      // todo: catch connection error
+      try {
+        dbConnection = new MySqlConnection (connectionString);
+        dbConnection.Open ();
+        // todo: initialize DB structure
+      } catch (Exception) {
+        throw new Exception("Error connecting to database.");
+      }
+
+      if (baseDataDir != null)
+        this.baseDataDir = Common.EndDirWithSlash(baseDataDir);
+
+      if (!Directory.Exists(this.baseDataDir)) {
+        Directory.CreateDirectory(this.baseDataDir);  // TODO: make this recursive to create parents
+      }
     }
 
-    public void SetBaseDataDir(String dir) {
-      // TODO: make sure it exists and/or create it
-     baseDataDir = dir;
+
+    public String DefaultConnectionString {
+      get {
+        return defaultConnectionString;
+      }
     }
 
-    public String GetDataDir(ServerAccount account) {
-      return baseDataDir + account.uid + "/files/";
+    public String BaseDataDir {
+      get {
+        return baseDataDir;
+      }
+    }
+
+    public String GetDataDir(ServerUser user) {
+      return baseDataDir + user.id + "/files/";
     }
 
     public bool CheckPassword(String pwordOrig, String pwordHashed) {
@@ -104,24 +128,26 @@ namespace mybox {
     /// <returns>
     /// The file list.
     /// </returns>
-    /// <param name='thisAccount'>
+    /// <param name='user'>
     /// This account.
     /// </param>
-    public List<List<string>> GetFileListSerializable(ServerAccount thisAccount) {
+    public List<List<string>> GetFileListSerializable(ServerUser user) {
       List<List<string>> fileList = new List<List<string>>();
 
-      int startPath = ("/" + thisAccount.uid + "/files/").Length + 1;
+      int startPath = ("/" + user.id + "/files/").Length + 1;
 
       DbCommand command = dbConnection.CreateCommand ();
-      command.CommandText = "SELECT substr(path, " + startPath + ") as path, mtime as modtime, if(mimetype='httpd/unix-directory', 'd','f') as type FROM oc_fscache WHERE user='" + thisAccount.uid + "' AND substr(path, " + startPath + ") != ''";
+      command.CommandText = "SELECT substr(path, " + startPath + ") as path, mtime as modtime, if(mimetype='httpd/unix-directory', 'd','f') as type, size, 0 as checksum FROM oc_fscache WHERE user='" + user.id + "' AND substr(path, " + startPath + ") != ''";
       DbReader reader = command.ExecuteReader ();
 
       while (reader.Read()) {
         List<string> fileInfo = new List<string>();
 
-        fileInfo.Add(reader ["path"].ToString ());
-        fileInfo.Add(reader ["modtime"].ToString ());
-        fileInfo.Add(reader ["type"].ToString ());
+        fileInfo.Add(reader["path"].ToString ());
+        fileInfo.Add(reader["type"].ToString ());
+        fileInfo.Add(reader["modtime"].ToString ());
+        fileInfo.Add(reader["size"].ToString());
+        fileInfo.Add(reader["checksum"].ToString());
 
         fileList.Add(fileInfo);
       }
@@ -147,12 +173,12 @@ namespace mybox {
     /// <returns>
     /// Flase if there was a problem during the update
     /// </returns>
-    /// <param name='thisAccount'></param>
+    /// <param name='user'></param>
     /// <param name='thisFile'></param>
-    public bool UpdateFile(ServerAccount thisAccount, MyFile thisFile) {
+    public bool UpdateFile(ServerUser user, MyFile thisFile) {
 
-      string path = "/" + thisAccount.uid + "/files/" + thisFile.name;
-      string absPath = GetDataDir(thisAccount) + thisFile.name; //Server.baseDataDir + path;
+      string path = "/" + user.id + "/files/" + thisFile.name;
+      string absPath = GetDataDir(user) + thisFile.name; //Server.baseDataDir + path;
       FileInfo f = new FileInfo (absPath);
       long mtime = Common.DateTimeToUnixTimestamp(f.LastWriteTimeUtc);
 
@@ -186,14 +212,14 @@ namespace mybox {
   
         string mimetype = MIMEAssistant.GetMIMEType(f.Name);
         string mimepart = mimetype.Substring(0, mimetype.LastIndexOf('/'));
-        string user = thisAccount.uid;
+
         bool writable = true; //!f.IsReadOnly;
         bool encrypted = false; // ?
         bool versioned = false; // ?
   
         command.CommandText = String.Format("INSERT INTO oc_fscache (parent, name, path, path_hash, size, mtime, ctime, mimetype, mimepart,`user`,writable,encrypted,versioned) "
                                             + "VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}', '{7}', '{8}', '{9}', '{10}', '{11}', '{12}')",
-                                            parentId, f.Name, path, Common.Md5Hash(path), f.Length, mtime, ctime, mimetype, mimepart, user, writable, encrypted, versioned);
+                                            parentId, f.Name, path, Common.Md5Hash(path), f.Length, mtime, ctime, mimetype, mimepart, user.id, writable, encrypted, versioned);
       }
 
       return (command.ExecuteNonQuery() == 1);
@@ -203,12 +229,12 @@ namespace mybox {
     /// Removes the file entry from the database.
     /// </summary>
     /// <returns></returns>
-    /// <param name='thisAccount'></param>
+    /// <param name='user'></param>
     /// <param name='filePath'></param>
-    public bool RemoveFile(ServerAccount thisAccount, String filePath) {
+    public bool RemoveFile(ServerUser user, String filePath) {
 
       DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "DELETE FROM oc_fscache WHERE path='"+ "/" + thisAccount.uid + "/files/" +filePath +"'";
+      command.CommandText = "DELETE FROM oc_fscache WHERE path='"+ "/" + user.id + "/files/" +filePath +"'";
 
       return (command.ExecuteNonQuery() == 1);
     }
@@ -217,7 +243,7 @@ namespace mybox {
     /// Get the number of entries in the accounts table
     /// </summary>
     /// <returns></returns>
-    public int AccountsCount() {
+    public int UsersCount() {
 
       int count = 0;
 
@@ -236,7 +262,7 @@ namespace mybox {
     /// <summary>
     /// Print a list of the accounts in the database
     /// </summary>
-    public void ShowAccounts () {
+    public void ShowUsers () {
 
       Console.WriteLine ("== uid ==");
 
@@ -258,19 +284,19 @@ namespace mybox {
     /// <summary>
     /// Get an account from the database via a known ID
     /// </summary>
-    /// <param name="id"></param>
+    /// <param name="userName"></param>
     /// <returns>null if not found</returns>
-    public ServerAccount GetAccountByID(String uid) {
+    public ServerUser GetUserByName(String userName) {
 
-      ServerAccount account = null;
+      ServerUser account = null;
 
       try {
         DbCommand command = dbConnection.CreateCommand();
-        command.CommandText = "select * from oc_users where uid='" + uid + "';";
+        command.CommandText = "select * from oc_users where uid='" + userName + "';";
         DbReader reader = command.ExecuteReader();
 
         while (reader.Read())
-          account = new ServerAccount(reader["uid"].ToString(), reader["password"].ToString() );
+          account = new ServerUser(reader["uid"].ToString(), reader["uid"].ToString(), reader["password"].ToString() );
 
         reader.Close();
       }

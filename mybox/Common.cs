@@ -63,10 +63,15 @@ namespace mybox {
 		public long modtime;  // when the file data was last modified
     public char type; // d=directory, f=file, l=link (link not yet supported)
 
-    public MyFile(String name, char type, long modtime /*, long updatetime*/) {
+    public long size;
+    public String checksum;
+
+    public MyFile(String name, char type, long modtime, long size, String checksum) {
       this.name = name;
       this.modtime = modtime;
       this.type = type;
+      this.size = size;
+      this.checksum = checksum;
     }
 
   }
@@ -242,6 +247,22 @@ namespace mybox {
     }
 
 
+    public static byte[] FileChecksumToBytes(String absPath) {
+      MD5 md5 = new MD5CryptoServiceProvider();
+      byte[] hash;
+
+      using(Stream fileStream = new FileStream(absPath, FileMode.Open))
+        using(Stream bufferedStream = new BufferedStream(fileStream, 1200000))
+          hash = md5.ComputeHash(bufferedStream);
+      
+      return hash;
+    }
+
+    public static String FileChecksumToString(String absPath) {
+      return BitConverter.ToString(FileChecksumToBytes(absPath)).Replace("-", String.Empty).ToLower();
+    }
+
+
     /// <summary>
     /// Gets a recursive listing of files from a directory
     /// </summary>
@@ -264,13 +285,14 @@ namespace mybox {
           string[] files = Directory.GetFiles(dir, "*.*");
 
           foreach (string absPath in files) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'f', Common.GetModTime(absPath)/*, -1*/));
+            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'f',
+                                  GetModTime(absPath), new FileInfo(absPath).Length,"0"));
           }
 
-          //result.AddRange(Directory.GetFiles(dir, "*.*"));
+          string[] dirs = Directory.GetDirectories(dir);
 
-          foreach (string absPath in Directory.GetDirectories(dir)) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'd', Common.GetModTime(absPath)/*, -1*/));
+          foreach (string absPath in dirs) {
+            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'd', GetModTime(absPath), 0, "0"));
             stack.Push(absPath);
           }
         }
@@ -386,20 +408,28 @@ namespace mybox {
         byte[] fileNameLen = BitConverter.GetBytes((Int16)(fileName.Length)); //length of file name
         byte[] fileData = File.ReadAllBytes(fullPath); //file
         byte[] fileDataLen = BitConverter.GetBytes(fileData.Length); // file length
-
+        
+        // TODO: make sure "file length" matches actual file size
+        
         long modtime = Common.GetModTime(fullPath); // TODO: make timestamps into int
-
         byte[] timestamp = BitConverter.GetBytes(modtime); // assume long = int64 = 8 bytes
+        
+        // temporarially calc checksum here, though should be done higher up
+        byte[] checksum = FileChecksumToBytes(fullPath);
+        String checksumString = BitConverter.ToString(checksum).Replace("-", String.Empty).ToLower();
 
         Console.WriteLine("Sending file " + relPath + " " + modtime);
 
         socket.Send(fileNameLen);//2
         socket.Send(fileName);
+        
         socket.Send(timestamp);//8
-        socket.Send(fileDataLen);//4
+        
+        socket.Send(checksum);//16 bytes, or 32 characters?
+        socket.Send(fileDataLen);//4, TODO: set this to 8 bits for files larger then 4GB ?
         socket.Send(fileData);
-
-        myFile = new MyFile(relPath, 'f', modtime/*, Common.NowUtcLong()*/);
+        
+        myFile = new MyFile(relPath, 'f', modtime, fileData.Length, checksumString);
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
@@ -423,7 +453,8 @@ namespace mybox {
 
 
       try {
-        // name length, name, data length, data
+        // receive order: name length, name, timestamp, checksum, data length, data
+        
         socket.Receive(buffer, 2, 0);
         Int16 nameLength = BitConverter.ToInt16(buffer, 0);
 
@@ -432,10 +463,14 @@ namespace mybox {
 
         // timestamp
         socket.Receive(buffer, 8, 0); // TODO: make timestamps into int
-
         DateTime timestamp = UnixTimeStampToDateTime(BitConverter.ToInt64(buffer, 0));
+        
+        // checksum
+        socket.Receive(buffer, 16, 0);
+        String checksumString = BitConverter.ToString(buffer, 0, 16).Replace("-", String.Empty).ToLower();
 
-        Console.WriteLine("Receiving file: " + relPath + " " + DateTimeToUnixTimestamp(timestamp) /* + " " + BitConverter.ToString(buffer, 0, 8)*/);
+        Console.WriteLine("Receiving file: " + relPath + " " + DateTimeToUnixTimestamp(timestamp)
+           + " " + checksumString);
 
         // data
         socket.Receive(buffer, 4, 0); // assumes filesize cannot be larger then int bytes, 4GB?
@@ -463,11 +498,12 @@ namespace mybox {
           }
         }
 
+        // TODO: save to temp location ie /tmp/123ljlksdf and varify md5 before moving saving file to dir
         System.Console.WriteLine("got file with md5: " + BitConverter.ToString(md5.Hash));
 
         File.SetLastWriteTimeUtc(absPath, timestamp);
 
-        myFile = new MyFile(relPath, 'f', timestamp.Ticks);
+        myFile = new MyFile(relPath, 'f', timestamp.Ticks, fileLength, checksumString);
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);

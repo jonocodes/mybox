@@ -25,6 +25,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Data;
+using System.Reflection;
 
 namespace mybox {
 
@@ -35,17 +36,52 @@ namespace mybox {
 
     private int port = Server.Port;
 //    private int defaultQuota = Server.DefaultQuota;
+    private Type backend = typeof(MySqlDB);
 
     private String configFile = Server.DefaultConfigFile;
-//    private String serverDbConnectionString = Server.DefaultAccountsDbConnectionString;
+    private String serverDbConnectionString;
+    private String baseDataDir;
 
     private void gatherInput() {
 
       String input = null;
-    
-      Console.Write("Port ["+port+"]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty) port = int.Parse(input); // TODO: catch
+      IServerDB serverDB = null;
+
+      do {
+        Console.Write("Port ["+port+"]: ");
+        input = Console.ReadLine();
+        if (input != String.Empty) port = int.Parse(input);
+  
+        Console.WriteLine("Backend [" + backend.Name + "]: " + backend.Name);
+        serverDB = (IServerDB)Activator.CreateInstance(backend /*, new Object[]{null}*/ );
+
+        baseDataDir = serverDB.BaseDataDir;
+        serverDbConnectionString = serverDB.DefaultConnectionString;
+  
+        Console.Write("DB connection string: [{0}]: ", serverDbConnectionString);
+        input = Console.ReadLine();
+        if (input != String.Empty) serverDbConnectionString = input;
+  
+        Console.Write("Base data directory: [{0}]: ", baseDataDir);
+        input = Console.ReadLine();
+        if (input != String.Empty) baseDataDir = input;
+
+        try {
+          serverDB.Connect(serverDbConnectionString, baseDataDir);
+          break;
+        } catch (Exception e) {
+          Console.WriteLine(e.Message);
+          continue;
+        }
+      } while (true);
+
+
+      int accounts = serverDB.UsersCount();
+      Console.WriteLine("  The database currently contains " + accounts + " accounts");
+
+      if (accounts == 0)
+        Console.WriteLine("You will not be able to to use Mybox unless user are created on the server.");
+
 
       Console.Write("Config file to create [" + configFile + "]: ");
       input = Console.ReadLine();
@@ -70,7 +106,9 @@ namespace mybox {
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
         file.WriteLine("[settings]");
         file.WriteLine(Server.CONFIG_PORT + "=" + port);
-//        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
+        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
+        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
+        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
       }
 
       Console.WriteLine ("Config file written: " + configFile);
@@ -89,16 +127,8 @@ namespace mybox {
         Common.ExitError();
       }
 
-      // TODO: elegently notify the user if the owncloud db is unreachable
-
-      ServerDB serverDB = new OwnCloudDB(null);
-      int accounts = serverDB.AccountsCount();
-      Console.WriteLine("The database contains " + accounts + " accounts");
-
       Console.WriteLine("Setup finished successfully.");
 
-      if (accounts == 0)
-        Console.WriteLine("You will not be able to to use Mybox unless accounts are created. Do this in Owncloud.");
     }
 
     /// <summary>

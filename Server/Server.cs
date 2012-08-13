@@ -28,7 +28,10 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Data;
 using System.Diagnostics;
+using System.Reflection;
+using System.Linq;
 using Newtonsoft.Json;
+
 
 namespace mybox {
 
@@ -50,20 +53,15 @@ namespace mybox {
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
-    public static String ServerDbConnectionString = null;
-    public ServerDB serverDB = null;
+    public IServerDB serverDB = null;
 
-    public static String baseDataDir = null;
-
-//    public static readonly String DefaultAccountsDbConnectionString = "Server=localhost;Database=owncloud;Uid=root;Pwd=root";
-    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/mybox_server.ini";
-    //public static readonly String DefaultBaseDataDir = "/srv/http/owncloud/data/";  // TODO: set from /srv/httpd/owncloud/config/config.php perhaps?
+    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
  //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
 
     public static readonly String CONFIG_PORT = "port";
     public static readonly String CONFIG_DIR = "baseDataDir";
     public static readonly String CONFIG_DBSTRING = "serverDbConnectionString";
-    // TODO: add database type (owncloud/mysql) to config file so the class can be autoloaded
+    public static readonly String CONFIG_BACKEND = "backend";
 
 
     #endregion
@@ -77,13 +75,7 @@ namespace mybox {
       Console.WriteLine("Starting server");
       Console.WriteLine("Loading config file " + configFile);
 
-      LoadConfig(configFile);
-
-//      Console.WriteLine("database connection: " + ServerDbConnectionString);
-
-      serverDB = new OwnCloudDB(ServerDbConnectionString);
-      if (baseDataDir != null)
-        serverDB.SetBaseDataDir(Common.EndDirWithSlash(baseDataDir));
+      serverDB = LoadConfig(configFile);
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
 
@@ -105,70 +97,43 @@ namespace mybox {
       }
     }
 
-    /*
-    /// <summary>
-    /// Checks a raw password against the stored hashed version
-    /// </summary>
-    /// <returns>
-    /// True if the check passes
-    /// </returns>
-    /// <param name='pwordOrig'>
-    /// Raw password
-    /// </param>
-    /// <param name='pwordHashed'>
-    /// Hashed password
-    /// </param>
-    public static bool CheckPassword(String pwordOrig, String pwordHashed) {
+    public static HashSet<Type> GetBackends() {
 
-      // TODO: this depends on an external PHP script. remove this dependency
+      HashSet<Type> result = new HashSet<Type>();
 
-      string phpPasswordHashLocation = "/srv/http/owncloud/3rdparty/phpass/PasswordHash.php";
+      var types = Assembly.GetExecutingAssembly().GetTypes().Where(m => m.IsClass && m.GetInterfaces().Contains(typeof(IServerDB)));
 
-      string input = "-r 'require_once \"" + phpPasswordHashLocation +"\"; if (!isset($argv) || count($argv) != 2) { $hasher=new PasswordHash(8,(CRYPT_BLOWFISH!=1));  if ( $hasher->CheckPassword($argv[1], $argv[2]) === true) { print \"password check passed\n\"; } }' "+ pwordOrig +" '"+ pwordHashed +"'";
+      foreach (var type in types)
+        result.Add(type);
 
-      Process myProcess = new Process();
-      ProcessStartInfo myProcessStartInfo = new ProcessStartInfo("php", input);
-      myProcessStartInfo.UseShellExecute = false;
-      myProcessStartInfo.RedirectStandardOutput = true;
-      myProcess.StartInfo = myProcessStartInfo;
-
-      myProcess.Start();
-      StreamReader myStreamReader = myProcess.StandardOutput;
-
-      string line;
-
-      while ((line = myStreamReader.ReadLine()) != null)
-        if (line.Contains("password check passed"))
-          return true;
-
-      return false;
+      return result;
     }
-    */
 
     /// <summary>
     /// Set member variables from config file
     /// </summary>
     /// <param name="configFile"></param>
-    public static void LoadConfig(String configFile) {
+    public static IServerDB LoadConfig(String configFile) {
+
+      IServerDB serverDB = null;
 
       try {
         IniParser iniParser = new IniParser(configFile);
 
         Port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
-        baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
-        ServerDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
+        String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
+        String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
+        Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
+
+        serverDB = (IServerDB)Activator.CreateInstance(dbType);
+        serverDB.Connect(serverDbConnectionString, baseDataDir);
+
       } catch (FileNotFoundException e) {
         Console.WriteLine(e.Message);
         Common.ExitError();
       }
 
-//      if (ServerDbConnectionString == null)
-//        ServerDbConnectionString = DefaultAccountsDbConnectionString;
-
-//      if (baseDataDir == null)
-//        baseDataDir = DefaultBaseDataDir;
-
-//      baseDataDir = Common.EndDirWithSlash(baseDataDir);
+      return serverDB;
     }
 
     /// <summary>
@@ -252,9 +217,9 @@ namespace mybox {
   
         ServerClientConnection toTerminate = clients[handle];
   
-        if (toTerminate.Account != null) {
-          Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.uid + ")");
-          RemoveFromMultiMap(toTerminate.Account.uid, handle);
+        if (toTerminate.User != null) {
+          Console.WriteLine("Removing client " + handle + " " + toTerminate.User);
+          RemoveFromMultiMap(toTerminate.User.id, handle);
         }
         else
           Console.WriteLine("Removing accountless client " + handle);
