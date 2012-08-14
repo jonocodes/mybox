@@ -156,17 +156,7 @@ namespace mybox {
 
       return fileList;
     }
-    /*
-    private String md5Hash (String input) {
-      String result = "";
-    
-      using (MD5 md5 = new MD5CryptoServiceProvider()) {
-        result = BitConverter.ToString (md5.ComputeHash (System.Text.Encoding.ASCII.GetBytes (input)));
-      }
-    
-      return result.Replace ("-", String.Empty).ToLower();
-    }
-     */
+
     /// <summary>
     /// Update or insert a new entry for the file into the database
     /// </summary>
@@ -176,6 +166,8 @@ namespace mybox {
     /// <param name='user'></param>
     /// <param name='thisFile'></param>
     public bool UpdateFile(ServerUser user, MyFile thisFile) {
+
+      // TODO: use OwnCloud API calls if possible perhaps: http://owncloud.org/dev/apps/database/
 
       string path = "/" + user.id + "/files/" + thisFile.name;
       string absPath = GetDataDir(user) + thisFile.name; //Server.baseDataDir + path;
@@ -194,15 +186,7 @@ namespace mybox {
       } else {
         // if the entry does not exist, insert it instead of updating it
 
-//        string parentPath = path.Substring(0, path.LastIndexOf('/'));
-
-//        string md5parent = Common.Md5Hash(parentPath); //md5Hash (parentPath);
-//        string path_hash = Common.Md5Hash(path); //md5Hash (path);
-
-//        long size = f.Length;
         long ctime =  Common.DateTimeToUnixTimestamp(f.CreationTimeUtc);
-
-//        string name = f.Name;
   
         DbCommand command_getParent = dbConnection.CreateCommand ();
         command_getParent.CommandText = "SELECT id FROM oc_fscache WHERE path_hash='"
@@ -264,7 +248,7 @@ namespace mybox {
     /// </summary>
     public void ShowUsers () {
 
-      Console.WriteLine ("== uid ==");
+      Console.WriteLine ("== users ==");
 
       try {
         DbCommand command = dbConnection.CreateCommand ();
@@ -419,7 +403,7 @@ namespace mybox {
       {"pgn", "application/x-chess-pgn"},
       {"pic", "image/pict"},
       {"pict", "image/pict"},
-      {"png", "image/png"}, 
+      {"png", "image/png"},
       {"pnm", "image/x-portable-anymap"},
       {"pnt", "image/x-macpaint"},
       {"pntg", "image/x-macpaint"},
