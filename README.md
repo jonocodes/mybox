@@ -1,14 +1,12 @@
 Mybox
 =====
 [https://github.com/jonocodes/mybox](https://github.com/jonocodes/mybox)
-version 0.3.0 by Jono
+version 0.4.0 by Jono
 
 
 Introduction
 ------------
 Mybox is a centralized file hosting and synchronization system. The goal is for it to be an open source alternative to Dropbox - both the client and server components. One server can host multiple accounts and each account can be used on multiple computers, where all files are automatically kept in sync across those computers.
-
-This version of Mybox makes use of [Owncloud](http://owncloud.org) on the server side.
 
 See the [wiki](https://github.com/jonocodes/mybox/wiki) for more details on [usage](https://github.com/jonocodes/mybox/wiki/Usage), [development](https://github.com/jonocodes/mybox/wiki/Development) and [the motivation](https://github.com/jonocodes/mybox/wiki/Project-Goals) behind this project.
 
@@ -20,8 +18,7 @@ This is a work in progress. The client and server are operational, but unfinishe
 
 Requirements (Server)
 ---------------------
-* Linux
-* Owncloud 4
+* MySql
 
 Requirements (Client)
 ---------------------
@@ -35,9 +32,7 @@ Here is how get it going in Linux. Start by building the solution with MonoDevel
 
 ### On the server machine ###
 
-Install and configure [Owncloud](http://owncloud.org/support/install/)
-
-Create a user account in Owncloud and then log into the web interface once as that user so the account gets fully initialized.
+In MySQL create an 'mybox' database with nothing in it.
 
 Configure Mybox server
 
@@ -45,7 +40,7 @@ Configure Mybox server
 
 Start the Mybox server process as the same user who hosts the Owncloud files
 
-      $ sudo -u http mono Server.exe -c ~/.mybox/mybox_server.ini
+      $ sudo mono Server.exe
 
 
 ### On the client machine ###
@@ -59,8 +54,3 @@ Run the client
       $ mono Client.exe
 
 You should now have a ~/Mybox directory which will be automatically synchronized to the server.
-
-### View files on server ###
-
-To see you files in the Owncloud web interface you should be able to visit your server address in a web browser.
-

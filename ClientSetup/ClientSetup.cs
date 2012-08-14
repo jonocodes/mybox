@@ -1,5 +1,5 @@
 ﻿/**
-    Mybox version 0.3.0
+    Mybox
     https://github.com/jonocodes/mybox
  
     Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
@@ -35,7 +35,6 @@ namespace mybox {
 
     private ClientAccount account = null;
     private String configDir = null;
-
 
     private void gatherInput() {
 
@@ -82,13 +81,12 @@ namespace mybox {
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(ClientServerConnection.ConfigFile, false)) {
         file.WriteLine("[settings]");
-        // TODO: replace these inline strings with constants like CLIENT_CFG_PORT
-        file.WriteLine("serverName=" + account.ServerName);
-        file.WriteLine("serverPort=" + account.ServerPort.ToString());
-        file.WriteLine("user=" + account.User);
+        file.WriteLine(ClientServerConnection.CONFIG_SERVER + "=" + account.ServerName);
+        file.WriteLine(ClientServerConnection.CONFIG_PORT + "=" + account.ServerPort.ToString());
+        file.WriteLine(ClientServerConnection.CONFIG_USER + "=" + account.User);
 //        file.WriteLine("salt=" + account.Salt);
-        file.WriteLine("password=" + account.Password);
-        file.WriteLine("directory=" + account.Directory);
+        file.WriteLine(ClientServerConnection.CONFIG_PASSWORD + "=" + account.Password);
+        file.WriteLine(ClientServerConnection.CONFIG_DIR + "=" + account.Directory);
 
         Console.WriteLine("pass: " + account.Password);
       }

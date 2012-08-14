@@ -1,5 +1,5 @@
 /**
-    Mybox version 0.3.0
+    Mybox
     https://github.com/jonocodes/mybox
  
     Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
@@ -71,6 +71,14 @@ namespace mybox {
     private static String logFile = null;
     private static FileIndex fileIndex = null;
     private static String dataDir = null;
+
+    // config file constants
+
+    public static readonly String CONFIG_SERVER = "serverName";
+    public static readonly String CONFIG_PORT = "serverPort";
+    public static readonly String CONFIG_USER = "user";
+    public static readonly String CONFIG_PASSWORD = "password";
+    public static readonly String CONFIG_DIR = "directory";
 
     // state members
 
@@ -240,12 +248,11 @@ namespace mybox {
 
         // TODO: turn these strings into constants that can be referred to
 
-        account.ServerName = iniParser.GetSetting("settings", "serverName"); // returns NULL when not found
-        account.ServerPort = int.Parse(iniParser.GetSetting("settings", "serverPort"));
-        account.User = iniParser.GetSetting("settings", "user");
-        account.Directory = iniParser.GetSetting("settings", "directory");
-        //account.Salt = iniParser.GetSetting("settings", "salt");
-        account.Password = iniParser.GetSetting("settings", "password");
+        account.ServerName = iniParser.GetSetting("settings", CONFIG_SERVER); // returns NULL when not found
+        account.ServerPort = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));
+        account.User = iniParser.GetSetting("settings", CONFIG_USER);
+        account.Directory = iniParser.GetSetting("settings", CONFIG_DIR);
+        account.Password = iniParser.GetSetting("settings", CONFIG_PASSWORD);
       } catch (FileNotFoundException e) {
         throw new Exception(e.Message);
       }
@@ -359,8 +366,6 @@ namespace mybox {
       disableDirListener(); // hack while incoming set gets figured out
 
       setStatus(ClientStatus.SYNCING);
-
-//      writeMessage("catchupSync started " + DateTime.UtcNow);
 
       // get full local file list
       Dictionary<String, MyFile> C = getLocalFileList();

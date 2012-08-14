@@ -1,3 +1,24 @@
+/**
+    Mybox
+    https://github.com/jonocodes/mybox
+ 
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not it can be found here:
+    http://www.gnu.org/licenses/gpl-2.0.html
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -61,8 +82,9 @@ CREATE TABLE IF NOT EXISTS `users` (
         command.ExecuteNonQuery();
 
 #if DEBUG
+        // password is 'badpassword'
         dbConnection.CreateCommand();
-        command.CommandText = @"INSERT IGNORE INTO `mybox`.`users` (`name`,`password`) VALUES ('test', 'badpassword');";
+        command.CommandText = @"INSERT IGNORE INTO `mybox`.`users` (`name`,`password`) VALUES ('test', '3693d93220b28a03d3c70bdc1cab2b890c65a2e6baff3d4a2a651b713c161c5c');";
         command.ExecuteNonQuery();
 #endif
 
@@ -96,8 +118,8 @@ CREATE TABLE IF NOT EXISTS `users` (
     }
 
     public bool CheckPassword(String pwordOrig, String pwordHashed) {
-      return true;
-      // TODO: update
+      // TODO: salt it!
+      return (Common.Sha256Hash(pwordOrig) == pwordHashed);
     }
 
     public List<List<string>> GetFileListSerializable(ServerUser thisAccount) {
@@ -141,15 +163,6 @@ CREATE TABLE IF NOT EXISTS `users` (
         command.CommandText = "UPDATE files SET modtime='" + thisFile.modtime + "' WHERE path='"+ path +"'";
       } else {
         // if the entry does not exist, insert it instead of updating it
-
-//        string parentPath = path.Substring(0, path.LastIndexOf('/'));
-
-//        string md5parent = Common.Md5Hash(parentPath); //md5Hash (parentPath);
-//        string path_hash = Common.Md5Hash(path); //md5Hash (path);
-
-//        long size = f.Length;
-
-//        string name = f.Name;
 
         DbCommand command_getParent = dbConnection.CreateCommand ();
         command_getParent.CommandText = "SELECT id FROM files WHERE path='"

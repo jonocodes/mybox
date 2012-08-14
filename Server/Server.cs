@@ -1,5 +1,5 @@
 /**
-    Mybox version 0.3.0
+    Mybox
     https://github.com/jonocodes/mybox
  
     Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
@@ -47,9 +47,6 @@ namespace mybox {
 
     // map of userId => set of all connected clients that belong to that user
     private Dictionary<String, HashSet<IntPtr>> multiClientMap = new Dictionary<String, HashSet<IntPtr>>();
-
-    // map of userId => FileIndex. this is here so we dont have to make per client DB connections
-    //public Dictionary<String, FileIndex> FileIndexes = new Dictionary<String, FileIndex>();
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
@@ -166,16 +163,7 @@ namespace mybox {
         }
       }
     }
-    /*
-    /// <summary>
-    /// Get the absolute path to the data directory for an account on the server. It should end with a slash.
-    /// </summary>
-    /// <param name="account"></param>
-    /// <returns></returns>
-    public static String GetAbsoluteDataDirectory(ServerAccount account) {
-      return baseDataDir + account.uid + "/files/";
-    }
-     */
+
     /// <summary>
     /// Send catchup commands to all connected clients attached to the same account
     /// </summary>
@@ -185,8 +173,6 @@ namespace mybox {
     /// <param name="arg">additional arguments to send along with the operation</param>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void SpanCatchupOperation(IntPtr myHandle, String accountId, Signal inputOperation, String arg) {
-
-      //    Console.WriteLine("spanCatchupOperation from " + myHandle + " to all account=" + accountId + " (" + operation.toString() +","+ arg +")");
 
       HashSet<IntPtr> thisMap = multiClientMap[accountId];
 

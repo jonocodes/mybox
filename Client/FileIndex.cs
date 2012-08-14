@@ -1,5 +1,5 @@
 ﻿/**
-    Mybox version 0.3.0
+    Mybox
     https://github.com/jonocodes/mybox
  
     Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
