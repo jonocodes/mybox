@@ -1,8 +1,8 @@
 ﻿/**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 using System;
 using System.Net.Sockets;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -33,11 +34,7 @@ namespace mybox {
   class ClientSetup {
 
     private ClientAccount account = null;
-    private String password = null;
     private String configDir = null;
-
-    //private String configFile = Client.configFile;//TODO: make this setable during gatherInput
-
 
     private void gatherInput() {
 
@@ -47,35 +44,35 @@ namespace mybox {
       input = Console.ReadLine();
       if (input != String.Empty) configDir = input;
 
-      Console.Write("Data directory ["+ account.directory +"]: ");
+      Console.Write("Data directory ["+ account.Directory +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.directory = input;
+      if (input != String.Empty) account.Directory = input;
 
-      Console.Write("Server name ["+ account.serverName +"]: ");
+      Console.Write("Server ["+ account.ServerName +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.serverName = input;
+      if (input != String.Empty) account.ServerName = input;
 
-      Console.Write("Server port ["+ account.serverPort +"]: ");
+      Console.Write("Server port ["+ account.ServerPort +"]: ");
       input = Console.ReadLine();
       if (input != String.Empty)
-        account.serverPort = int.Parse(input);  //catch
+        account.ServerPort = int.Parse(input);  //catch
       
       // attempt to connect to the server to see if it is up
-      Socket socket = ClientServerConnection.ConnectSocket(account.serverName, account.serverPort);
+      Socket socket = ClientServerConnection.ConnectSocket(account.ServerName, account.ServerPort);
 
       if (socket == null) {
         Console.WriteLine("Unable to contact server");
         Common.ExitError();
       }
 
-      Console.Write("Email ["+ account.email +"]: ");
+      Console.Write("User ["+ account.User +"]: ");
       input = Console.ReadLine();
-      if (input != String.Empty) account.email = input;
+      if (input != String.Empty) account.User = input;
 
-      Console.Write("Password [" + password + "]: "); // TODO: bullet out console entry
+      Console.Write("Password [" + account.Password + "]: "); // TODO: bullet out console entry
       input = Console.ReadLine();
-      if (input != String.Empty) password = input;
 
+      if (input != String.Empty) account.Password = input;
     }
 
     private bool saveConfig() {
@@ -84,11 +81,14 @@ namespace mybox {
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(ClientServerConnection.ConfigFile, false)) {
         file.WriteLine("[settings]");
-        file.WriteLine("serverName=" + account.serverName);
-        file.WriteLine("serverPort=" + account.serverPort.ToString());
-        file.WriteLine("email=" + account.email);
-        file.WriteLine("salt=" + account.salt);
-        file.WriteLine("directory=" + account.directory);
+        file.WriteLine(ClientServerConnection.CONFIG_SERVER + "=" + account.ServerName);
+        file.WriteLine(ClientServerConnection.CONFIG_PORT + "=" + account.ServerPort.ToString());
+        file.WriteLine(ClientServerConnection.CONFIG_USER + "=" + account.User);
+//        file.WriteLine("salt=" + account.Salt);
+        file.WriteLine(ClientServerConnection.CONFIG_PASSWORD + "=" + account.Password);
+        file.WriteLine(ClientServerConnection.CONFIG_DIR + "=" + account.Directory);
+
+        Console.WriteLine("pass: " + account.Password);
       }
 
       Console.WriteLine("Config file written: " + ClientServerConnection.ConfigFile);
@@ -96,15 +96,25 @@ namespace mybox {
       return true;
     }
 
+    /// <summary>
+    /// This will be hooked into the event handler in the MyWorker class and will make sure
+    /// that the message is logged to the GUI
+    /// </summary>
+    /// <param name="message"></param>
+    private static void logToConsole(String message) {
+      Console.WriteLine(DateTime.Now + " : " + message);
+    }
 
     public ClientSetup() {
 
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
+
       // set up the defaults
       account = new ClientAccount();
-      account.serverName = "localhost";
-      account.serverPort = Common.DefaultCommunicationPort;
-      account.email = "bill@gates.com";
-      password = "bill";
+      account.ServerName = "localhost";
+      account.ServerPort = Common.DefaultCommunicationPort;
+      account.User = "test";
+      account.Password = "badpassword";
 
       configDir = ClientServerConnection.DefaultConfigDir;
 
@@ -112,19 +122,19 @@ namespace mybox {
     
       gatherInput();
 
-      account.directory = Common.EndDirWithSlash(account.directory);
+      account.Directory = Common.EndDirWithSlash(account.Directory);
       configDir = Common.EndDirWithSlash(configDir);
     
       // attach the account to the server to get the user
-      // TODO: clean up this function and its arguments
       ClientServerConnection client = new ClientServerConnection();
-      account = client.StartGetAccountMode(account.serverName, account.serverPort, account.email, account.directory);
-      //client.close();
 
-    
+      Console.WriteLine("client initialized. trying coonection...");
+
+      client.StartGetAccountMode(account);
+
       // data directory
-      if (!Common.CreateLocalDirectory(account.directory)) {
-        Console.WriteLine("Data directory could not be created: " + account.directory);
+      if (!Common.CreateLocalDirectory(account.Directory)) {
+        Console.WriteLine("Data directory could not be created: " + account.Directory);
         Common.ExitError();
       }
 

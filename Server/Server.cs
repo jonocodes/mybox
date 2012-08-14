@@ -1,8 +1,8 @@
 /**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -27,6 +27,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Data;
+using System.Diagnostics;
+using System.Reflection;
+using System.Linq;
+using Newtonsoft.Json;
+
 
 namespace mybox {
 
@@ -37,6 +42,7 @@ namespace mybox {
 
     #region members
 
+    // map of handle => conncetion
     private Dictionary<IntPtr, ServerClientConnection> clients = new Dictionary<IntPtr, ServerClientConnection>();
 
     // map of userId => set of all connected clients that belong to that user
@@ -44,15 +50,16 @@ namespace mybox {
 
     public static int DefaultQuota = 50;  // size in megabytes
     public static int Port = Common.DefaultCommunicationPort;
-    public static String AccountsDbfile = null;
-    public AccountsDB Accounts = null;
+    public IServerDB serverDB = null;
 
-    public static readonly String DefaultAccountsDbFile = Common.UserHome + "/.mybox/mybox_server_accounts.db";
-    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/mybox_server.ini";
-    public static readonly String DefaultBaseDataDir = Common.UserHome + "/.mybox/mbServerSpace";
-    public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
+    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
+ //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
 
-    private static String baseDataDir = null;
+    public static readonly String CONFIG_PORT = "port";
+    public static readonly String CONFIG_DIR = "baseDataDir";
+    public static readonly String CONFIG_DBSTRING = "serverDbConnectionString";
+    public static readonly String CONFIG_BACKEND = "backend";
+
 
     #endregion
 
@@ -65,11 +72,7 @@ namespace mybox {
       Console.WriteLine("Starting server");
       Console.WriteLine("Loading config file " + configFile);
 
-      LoadConfig(configFile);
-
-      Console.WriteLine("database: " + AccountsDbfile);
-
-      Accounts = new AccountsDB(AccountsDbfile);
+      serverDB = LoadConfig(configFile);
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
 
@@ -90,33 +93,44 @@ namespace mybox {
         clients.Add(listenerSocket.Handle, client);
       }
     }
+    /*
+    public static HashSet<Type> GetBackends() {
 
+      HashSet<Type> result = new HashSet<Type>();
+
+      var types = Assembly.GetExecutingAssembly().GetTypes().Where(m => m.IsClass && m.GetInterfaces().Contains(typeof(IServerDB)));
+
+      foreach (var type in types)
+        result.Add(type);
+
+      return result;
+    }
+    */
     /// <summary>
     /// Set member variables from config file
     /// </summary>
     /// <param name="configFile"></param>
-    public static void LoadConfig(String configFile) {
+    public static IServerDB LoadConfig(String configFile) {
+
+      IServerDB serverDB = null;
 
       try {
         IniParser iniParser = new IniParser(configFile);
 
-        Port = int.Parse(iniParser.GetSetting("settings", "port"));  // returns NULL when not found ?
-        DefaultQuota = int.Parse(iniParser.GetSetting("settings", "defaultQuota"));
-        baseDataDir = iniParser.GetSetting("settings", "baseDataDir");
-        AccountsDbfile = iniParser.GetSetting("settings", "accountsDbFile");
+        Port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
+        String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
+        String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
+        Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
+
+        serverDB = (IServerDB)Activator.CreateInstance(dbType);
+        serverDB.Connect(serverDbConnectionString, baseDataDir);
+
       } catch (FileNotFoundException e) {
         Console.WriteLine(e.Message);
         Common.ExitError();
       }
 
-      if (AccountsDbfile == null)
-        AccountsDbfile = DefaultAccountsDbFile;
-
-      if (baseDataDir == null)
-        baseDataDir = DefaultBaseDataDir;
-
-      Common.CreateLocalDirectory(baseDataDir);
-
+      return serverDB;
     }
 
     /// <summary>
@@ -138,13 +152,16 @@ namespace mybox {
       }
     }
 
-    /// <summary>
-    /// Get the absolute path to the data directory for an account on the server. It should end with a slash.
-    /// </summary>
-    /// <param name="account"></param>
-    /// <returns></returns>
-    public static String GetAbsoluteDataDirectory(AccountsDB.Account account) {
-      return baseDataDir + "/" + account.id + "/";
+    public void RemoveFromMultiMap(String id, IntPtr handle) {
+
+      if (multiClientMap.ContainsKey(id)) {
+        HashSet<IntPtr> thisMap = multiClientMap[id];
+
+        if (thisMap.Contains(handle)) {
+          thisMap.Remove(handle);
+          multiClientMap[id] = thisMap;
+        }
+      }
     }
 
     /// <summary>
@@ -156,8 +173,6 @@ namespace mybox {
     /// <param name="arg">additional arguments to send along with the operation</param>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void SpanCatchupOperation(IntPtr myHandle, String accountId, Signal inputOperation, String arg) {
-
-      //    Console.WriteLine("spanCatchupOperation from " + myHandle + " to all account=" + accountId + " (" + operation.toString() +","+ arg +")");
 
       HashSet<IntPtr> thisMap = multiClientMap[accountId];
 
@@ -182,35 +197,30 @@ namespace mybox {
     /// Disconnect a ServerClientConnection from the server
     /// </summary>
     /// <param name="handle"></param>
-    public void removeConnection(IntPtr handle) {
+    public void RemoveConnection(IntPtr handle) {
 
-      // update the client map
-
-      ServerClientConnection toTerminate = clients[handle];
-
-      if (toTerminate.Account != null) {
-        Console.WriteLine("Removing client " + handle + " (" + toTerminate.Account.email + ")");
-
-        HashSet<IntPtr> thisMap = multiClientMap[toTerminate.Account.id];
-        thisMap.Remove(handle);
-        multiClientMap[toTerminate.Account.id] = thisMap;
+      if (clients.ContainsKey(handle)) {
+  
+        ServerClientConnection toTerminate = clients[handle];
+  
+        if (toTerminate.User != null) {
+          Console.WriteLine("Removing client " + handle + " " + toTerminate.User);
+          RemoveFromMultiMap(toTerminate.User.id, handle);
+        }
+        else
+          Console.WriteLine("Removing accountless client " + handle);
+        /*
+        try {
+          toTerminate.StopListener();
+        }
+        catch (IOException ioe) {
+          Console.WriteLine("Error closing thread: " + ioe);
+        }
+  */
+        // remove from list
+        clients.Remove(handle);
       }
-      else
-        Console.WriteLine("Removing accountless client " + handle);
-
-      //try {
-      //  toTerminate.stopListener();
-      //}
-      //catch (IOException ioe) {
-      //  Console.WriteLine("Error closing thread: " + ioe);
-      //}
-
-      //      Console.WriteLine("Removing client " + handle);
-
-      // remove from list
-      clients.Remove(handle);
     }
-
 
 
     /// <summary>

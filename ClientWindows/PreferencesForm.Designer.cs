@@ -99,9 +99,10 @@
       this.buttonOK.UseVisualStyleBackColor = true;
       this.buttonOK.Click += new System.EventHandler(this.buttonOK_Click);
       // 
-      // backgroundWorker1
+      // backgroundWorker
       // 
       this.backgroundWorker.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker_DoWork);
+
       // 
       // PreferencesForm
       // 

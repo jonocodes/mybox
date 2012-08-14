@@ -1,8 +1,8 @@
 ﻿/**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,8 +21,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Data;
+using System.Reflection;
 
 namespace mybox {
 
@@ -32,34 +35,53 @@ namespace mybox {
   class ServerSetup {
 
     private int port = Server.Port;
-    private int defaultQuota = Server.DefaultQuota;
+//    private int defaultQuota = Server.DefaultQuota;
+    private Type backend = typeof(MySqlDB);
 
     private String configFile = Server.DefaultConfigFile;
-    private String baseDataDir = Server.DefaultBaseDataDir;
-    private String accountsDbFile = Server.DefaultAccountsDbFile;
+    private String serverDbConnectionString;
+    private String baseDataDir;
 
     private void gatherInput() {
 
       String input = null;
-    
-      Console.Write("Port ["+port+"]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty) port = int.Parse(input); // TODO: catch
+      IServerDB serverDB = null;
 
-      Console.Write("Per-account quota in megabytes [" + defaultQuota + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        defaultQuota = int.Parse(input);
+      do {
+        Console.Write("Port ["+port+"]: ");
+        input = Console.ReadLine();
+        if (input != String.Empty) port = int.Parse(input);
+  
+        Console.WriteLine("Backend [" + backend.Name + "]: " + backend.Name);
+        serverDB = (IServerDB)Activator.CreateInstance(backend /*, new Object[]{null}*/ );
 
-      Console.Write("Base data directory to create/use [" + baseDataDir + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        baseDataDir = input;
+        baseDataDir = serverDB.BaseDataDir;
+        serverDbConnectionString = serverDB.DefaultConnectionString;
+  
+        Console.Write("DB connection string: [{0}]: ", serverDbConnectionString);
+        input = Console.ReadLine();
+        if (input != String.Empty) serverDbConnectionString = input;
+  
+        Console.Write("Base data directory: [{0}]: ", baseDataDir);
+        input = Console.ReadLine();
+        if (input != String.Empty) baseDataDir = input;
 
-      Console.Write("Accounts database file to create/use [" + accountsDbFile + "]: ");
-      input = Console.ReadLine();
-      if (input != String.Empty)
-        accountsDbFile = input;
+        try {
+          serverDB.Connect(serverDbConnectionString, baseDataDir);
+          break;
+        } catch (Exception e) {
+          Console.WriteLine(e.Message);
+          continue;
+        }
+      } while (true);
+
+
+      int accounts = serverDB.UsersCount();
+      Console.WriteLine("  The database currently contains " + accounts + " accounts");
+
+      if (accounts == 0)
+        Console.WriteLine("You will not be able to to use Mybox unless user are created on the server.");
+
 
       Console.Write("Config file to create [" + configFile + "]: ");
       input = Console.ReadLine();
@@ -68,55 +90,45 @@ namespace mybox {
 
     }
 
+    private bool saveConfig () {
 
-    private bool saveConfig() {
+      string configDir = Path.GetDirectoryName(configFile);
+
+      if (!Directory.Exists(configDir)) {
+        if (!Common.CreateLocalDirectory(configDir)) {
+          Console.WriteLine("Unable to create config directory " + configDir);
+          Common.ExitError ();
+        }
+      }
 
       // TODO: handle existing file
 
       using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
         file.WriteLine("[settings]");
-        file.WriteLine("port=" + port);
-        file.WriteLine("defaultQuota=" + defaultQuota);
-        file.WriteLine("baseDataDir=" + baseDataDir);
-        file.WriteLine("accountsDbFile=" + accountsDbFile);
+        file.WriteLine(Server.CONFIG_PORT + "=" + port);
+        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
+        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
+        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
       }
 
-      Console.WriteLine("Config file written: " + configFile);
+      Console.WriteLine ("Config file written: " + configFile);
 
       return true;
     }
 
-    private ServerSetup() {
+    private ServerSetup () {
 
-      Console.WriteLine("Welcome to the Mybox server setup wizard");
-    
-      // TODO: add facility to create a new database
+      Console.WriteLine ("Welcome to the Mybox server setup wizard");
 
       gatherInput();
-
-      if (!Common.CreateLocalDirectory(baseDataDir)) {
-        Console.WriteLine("Unable to setup directories.");
-        Common.ExitError();
-      }
-    
-      if (!AccountsDB.Setup(accountsDbFile)) {
-        Console.WriteLine("Unable to setup database.");
-        Common.ExitError();
-      }
 
       if (!saveConfig()) {
         Console.WriteLine("Unable to save config file.");
         Common.ExitError();
       }
 
-      AccountsDB accountsDB = new AccountsDB(accountsDbFile);
-      int accounts = accountsDB.AccountsCount();
-      Console.WriteLine("The database contains " + accounts + " accounts");
-
       Console.WriteLine("Setup finished successfully.");
 
-      if (accounts == 0)
-        Console.WriteLine("You will not be able to to use Mybox unless accounts are created.");
     }
 
     /// <summary>

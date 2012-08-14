@@ -1,8 +1,8 @@
 ﻿/**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,9 +32,9 @@ namespace mybox {
   /// </summary>
   class Client {
 
-    private delegate void setStatusHandler(ClientStatus status);
+    //private delegate void setStatusHandler(ClientStatus status);
 
-    private void setStatus (ClientStatus status) {
+    private void setStatus(ClientStatus status) {
       Console.WriteLine ("Status: " + status.ToString ());
     }
 
@@ -42,13 +42,13 @@ namespace mybox {
     /// this delegate is used for the BeginInvoke to allow for thread safe updating of the GUI
     /// </summary>
     /// <param name="message"></param>
-    private delegate void writeMessageHandler(String message);
+    //private delegate void writeMessageHandler(String message);
 
     /// <summary>
     /// this will handle logging the message to a file
     /// </summary>
     /// <param name="message"></param>
-    private void logToFile(String message) {
+    private static void logToFile(String message) {
       File.AppendAllText(ClientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
     }
 
@@ -57,22 +57,23 @@ namespace mybox {
     /// that the message is logged to the GUI
     /// </summary>
     /// <param name="message"></param>
-    private void logToConsole(String message) {
+    private static void logToConsole(String message) {
       Console.WriteLine(DateTime.Now + " : " + message);
     }
 
-    public Client (String configDir) {
+    public Client(String configDir) {
 
-      ClientServerConnection.LogHandlers.Add (new ClientServerConnection.LoggingHandlerDelegate (logToConsole));
-      ClientServerConnection.LogHandlers.Add (new ClientServerConnection.LoggingHandlerDelegate (logToFile));
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
+      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
       ClientServerConnection.StatusHandler = setStatus;
 
       try {
         ClientServerConnection.SetConfigDir(configDir);
         ClientServerConnection client = new ClientServerConnection();
         client.LoadConfig(ClientServerConnection.ConfigFile);
-        client.start();
-      } catch (Exception e) {
+        client.Start();
+      }
+      catch (Exception e) {
         logToConsole("Error: " + e.Message);
         logToFile("Error: " + e.Message);
 #if DEBUG
@@ -133,6 +134,5 @@ namespace mybox {
     }
 
   }
-
 
 }

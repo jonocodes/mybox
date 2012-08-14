@@ -1,8 +1,8 @@
 ﻿/**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -32,109 +32,19 @@ namespace mybox {
   /// </summary>
   class ServerAdmin {
 
-    private AccountsDB accountsDb = null;
-
-    private void deleteAccount(){
-
-      accountsDb.ShowAccounts();
-
-      Console.Write("Which account would you like to delete?\naccount number> ");
-
-      String input = null;
-
-      input = Console.ReadLine();
-
-      AccountsDB.Account thisAccount = accountsDb.GetAccountByID(input);
-
-      if (thisAccount == null) {
-        Console.WriteLine("account " + input + " does not exist.");
-        return;
-      }
-
-      Console.Write("Are you sure you want to delete " + thisAccount + "\ny/n> ");
-
-      input = Console.ReadLine();
-
-      if (input == ("y")) {
-
-        // delete the data directory
-        String userDir = Server.GetAbsoluteDataDirectory(thisAccount);
-
-        if (!Common.DeleteLocal(userDir))
-          Console.WriteLine("There was a problem deleting the user directory " + userDir);
-      
-        // update the database
-        if(accountsDb.DeleteAccount(thisAccount.id)) 
-          Console.WriteLine("Account deleted");
-        else
-          Console.WriteLine("Unable to delete account from database");
-      }
-
-    }
-
-
-    private void addAccount() {
-
-      // gather user input
-    
-      Console.Write("Add a new account.\nemail> ");
-      String email = Console.ReadLine();
-    
-      Console.Write("password> ");
-      String password = Console.ReadLine();
-    
-      // validate the entered fields
-    
-      if (!accountsDb.ValidatePotentialAccount(email, password)){
-        Console.WriteLine("New account is invalid or conflicts with an existing one.");
-        return;
-      }
-    
-
-      // update the database
-      String salt = null, encryptedPassword = null;
-
-      try{
-        salt = Common.GenerateSalt(8);
-        encryptedPassword = Common.EncryptPassword(password, salt);
-      } catch (Exception e) {
-        Console.WriteLine("Password encryption error " + e.Message);
-      }
-    
-      AccountsDB.Account account = accountsDb.AddAccount(email, encryptedPassword, salt);
-      
-      if (account == null) {
-        Console.WriteLine("Error: Unable to add account to database");
-        return;
-      }
-
-
-      String userDir = Server.GetAbsoluteDataDirectory(account);
-
-      if (!Common.CreateLocalDirectory(userDir)) {
-        Console.WriteLine("There was a problem when creating the data directory: " + userDir);
-        Common.ExitError();
-      }
-
-    }
+    private IServerDB serverDb = null;
 
     public ServerAdmin(String configFile) {
 
-      Server.LoadConfig(configFile);
-
-      accountsDb = new AccountsDB(Server.AccountsDbfile);
+      serverDb = Server.LoadConfig(configFile);
 
       Console.WriteLine("Starting ServerAdmin command line utility...");
 
       char choice = ' ';
-//      String input = null;
     
       // menu
       while (choice != 'q') {
         Console.WriteLine("  l) List accounts");
-        //Server.printMessage("  p) Show encyrpted password");
-        Console.WriteLine("  a) Add account");
-        Console.WriteLine("  d) Delete account");
         Console.WriteLine("  q) Quit");
         Console.Write("  > ");
         
@@ -146,21 +56,10 @@ namespace mybox {
 
         switch (choice) {
           case 'l':
-            accountsDb.ShowAccounts();
+            serverDb.ShowUsers();
             break;
-          case 'd':
-            deleteAccount();
-            break;
-          case 'a':
-            addAccount();
-            break;
-          //case 'p':
-          //  showEncryptedPassword();
-          //  break;
         }
       }
-      //dbConnection.close();
-
     }
 
     /// <summary>

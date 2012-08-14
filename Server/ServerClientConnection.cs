@@ -1,8 +1,8 @@
 ﻿/**
-    Mybox version 0.3.0
-    https://github.com/mybox/myboxSharp
+    Mybox
+    https://github.com/jonocodes/mybox
  
-    Copyright (C) 2011  Jono Finger (jono@foodnotblogs.com)
+    Copyright (C) 2012  Jono Finger (jono@foodnotblogs.com)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ namespace mybox {
     private String dataDir = null;
     private byte[] inputSignalBuffer = new byte[1];
 
-    public AccountsDB.Account Account = null;
+    public ServerUser User = null;
 
     #endregion
 
@@ -81,20 +81,29 @@ namespace mybox {
           listenToClient();
         }
       }
-      catch (Exception) {
-        Console.WriteLine("closed by remote host");
+      catch (Exception e) {
+        Console.WriteLine("closed by remote host with exception " + e.Message +"\n" + e.StackTrace);
         close();
       }
+    }
+
+    public void StopListener() {
+      socket.Close();
+      socket = null;
     }
 
     /// <summary>
     /// Close the connection
     /// </summary>
     private void close() {
-      if (server != null)
-        server.removeConnection(handle);
-    }
 
+//      Console.WriteLine("close called on server " + server + " eq " + (server != null));
+
+      if (server != null) {
+//        Console.WriteLine("removing connection");
+        server.RemoveConnection(handle);
+      }
+    }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToClient(Signal signal) {
@@ -110,24 +119,36 @@ namespace mybox {
     /// <summary>
     /// Attempt to authenticate the client via credentials. If it matches an account on the server return true.
     /// </summary>
-    /// <param name="email"></param>
+    /// <param name="userName"></param>
+    /// <param name="password"></param>
     /// <returns></returns>
-    private bool attachAccount(String email) {
+    private bool attachUser(String userName, String password) {
 
-      Account = server.Accounts.GetAccountByEmail(email);
+      User = server.serverDB.GetUserByName(userName);
 
-      if (Account == null) {
-        Console.WriteLine("Account does not exist " + email); // TODO: return false?
+      if (User == null) {
+        Console.WriteLine("User does not exist: " + userName); // TODO: return false?
         return false;
       }
 
-      dataDir = Server.GetAbsoluteDataDirectory(Account);
+      if (!server.serverDB.CheckPassword(password, User.password)) {
+        Console.WriteLine("Password incorrect for: " + userName);
+        return false;
+      }
 
-      // create directory if it does not exist
-      if (!Directory.Exists(dataDir))
-        Directory.CreateDirectory(dataDir);
+      dataDir = server.serverDB.GetDataDir(User);
 
-      Console.WriteLine("Attached account " + Account + " to handle " + handle);
+      if (!Directory.Exists(dataDir)) {
+      
+        try {
+          Directory.CreateDirectory(dataDir); // TODO: make recursive
+        } catch (Exception) {
+          Console.WriteLine("Unable to find or create data directory: " + dataDir);
+          return false;
+        }
+      }
+
+      Console.WriteLine("Attached account " + userName + " to handle " + handle);
       Console.WriteLine("Local server storage in: " + dataDir);
 
       return true;
@@ -137,12 +158,12 @@ namespace mybox {
     /// Check the outgoing queue for files to send to the client and then send them!
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    private void checkOutQueue() {
+    private void processOutQueue() {
 
       if (outQueue.Count > 0) {
-        sendCommandToClient(Signal.s2c);  // should ove into SendFile
-        Common.SendFile(outQueue.Dequeue(), socket, dataDir);
-        checkOutQueue();
+        sendCommandToClient(Signal.s2c);
+        Common.SendFile(outQueue.Dequeue(), socket, dataDir); // TODO: check return value
+        processOutQueue();
       }
 
     }
@@ -157,13 +178,18 @@ namespace mybox {
 
       switch (signal) {
         case Signal.c2s:
-          MyFile myFile = Common.RecieveFile(socket, dataDir);
-          server.SpanCatchupOperation(handle, Account.id, signal, myFile.name);
+
+          MyFile newFile = Common.ReceiveFile(socket, dataDir);
+
+          if (newFile != null)
+            server.serverDB.UpdateFile(User, newFile);
+
+          server.SpanCatchupOperation(handle, User.id, signal, newFile.name);
           break;
 
         //case Signal.clientWantsToSend:
-        //  String relPath = Common.RecieveString(socket);
-        //  long timestamp = Common.RecieveTimestamp(socket);
+        //  String relPath = Common.ReceiveString(socket);
+        //  long timestamp = Common.ReceiveTimestamp(socket);
 
         //  sendCommandToClient(Signal.clientWantsToSend_response);
 
@@ -179,73 +205,82 @@ namespace mybox {
         //  break;
 
         case Signal.clientWants:
-          String relPath = Common.RecieveString(socket);
+          String relPath = Common.ReceiveString(socket);
           if (File.Exists(dataDir + relPath)) {
             outQueue.Enqueue(relPath);
-            checkOutQueue();
+            processOutQueue();
           }
           break;
 
         case Signal.deleteOnServer:
-          relPath = Common.RecieveString(socket);
-          Common.DeleteLocal(dataDir + relPath);
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath);
-          break;
+          relPath = Common.ReceiveString(socket);
 
-        case Signal.renameOnServer:
-          relPath = Common.RecieveString(socket);
-          String relPathB = Common.RecieveString(socket);
+          if (Common.DeleteLocal(dataDir + relPath))
+            server.serverDB.RemoveFile(User, relPath);
+//            index.Remove(relPath);  // TODO: check return value
 
-          if (File.Exists(dataDir + relPath))
-            Common.RenameLocal(dataDir + relPath, dataDir + relPathB);
-
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath + "->" + relPathB);
+          server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.createDirectoryOnServer:
-          relPath = Common.RecieveString(socket);
-          Common.CreateLocalDirectory(dataDir + relPath);
-          server.SpanCatchupOperation(handle, Account.id, signal, relPath);
+          relPath = Common.ReceiveString(socket);
+          
+          if (Common.CreateLocalDirectory(dataDir + relPath))
+            server.serverDB.UpdateFile(User, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)
+            , 0, "0"));
+
+          server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
-          List<MyFile> fileList = Common.GetFilesRecursive(dataDir);
 
-          string jsonString = JsonConvert.SerializeObject(fileList);
-          // TODO: eventually use MyFile.serialize to save bytes. but even more eventually send the .db file instead of a string
+          List<List<string>> fileListToSerialize = server.serverDB.GetFileListSerializable(User);
 
-          sendCommandToClient(Signal.requestServerFileList_response);
-          Common.SendString(socket, jsonString);
+          String jsonOutStringFiles = JsonConvert.SerializeObject(fileListToSerialize);
+
+          Console.WriteLine("sending json file list: " + jsonOutStringFiles);
+
+          try {
+            sendCommandToClient(Signal.requestServerFileList_response);
+            Common.SendString(socket, jsonOutStringFiles);
+          }
+          catch (Exception e) {
+            Console.WriteLine("Error during " + Signal.requestServerFileList_response + e.Message);
+            Common.ExitError();
+          }
 
           break;
 
         case Signal.attachaccount:
 
-          String args = Common.RecieveString(socket);
+          String args = Common.ReceiveString(socket);
 
-          Dictionary<string, string> attachInput = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
+          Console.WriteLine("received " + args);
 
-          String email = attachInput["email"];
-          //        String password = (String)attachInput.get("password");
+          List<string> attachInput = JsonConvert.DeserializeObject<List<string>>(args);
+
+          String userName = attachInput[0];
+          String password = attachInput[1];
 
           Dictionary<string, string> jsonOut = new Dictionary<string, string>();
           jsonOut.Add("serverMyboxVersion", Common.AppVersion);
 
-          if (attachAccount(email)) {
+          if (attachUser(userName, password)) {
             jsonOut.Add("status", "success");
-            jsonOut.Add("quota", Account.quota.ToString());
-            jsonOut.Add("salt", Account.salt);
+            //jsonOut.Add("quota", Account.quota.ToString());
+            //jsonOut.Add("salt", Account.salt);
 
-            server.AddToMultiMap(Account.id, handle);
+            server.AddToMultiMap(User.id, handle);
           }
           else {
             jsonOut.Add("status", "failed");
-            jsonOut.Add("error", "invalid account");
+            jsonOut.Add("error", "login invalid");
 
+            close ();
             // TODO: disconnect the client here
           }
 
-          String jsonOutString = JsonConvert.SerializeObject(jsonOut);//fastJSON.JSON.Instance.ToJSON(jsonOut);
+          String jsonOutString = JsonConvert.SerializeObject(jsonOut);
 
           try {
             sendCommandToClient(Signal.attachaccount_response);
@@ -295,16 +330,6 @@ namespace mybox {
         }
         catch (Exception e) {
           Console.WriteLine("catchup delete to client failed: " + e.Message);
-        }
-      }
-      else if (inputOperation == Signal.renameOnServer) {  // handles files and directories?
-        try {
-          Console.WriteLine("catchup rename to client (" + handle + "): " + arg);
-          sendCommandToClient(Signal.renameOnClient);
-          Common.SendString(socket, arg);
-        }
-        catch (Exception e) {
-          Console.WriteLine("catchup rename to client failed: " + e.Message);
         }
       }
       else if (inputOperation == Signal.createDirectoryOnServer) {
