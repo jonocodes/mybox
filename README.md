@@ -16,14 +16,11 @@ Project Status
 This is a work in progress. The client and server are operational, but unfinished. At this stage, the focus is on the core libraries so the most usable setup would be to use the command line version of Mybox. It should also be noted that socket encryption has been removed in the latest version but will be added back later. In addition the current version assumes that the time on the server and client are the same, so when testing you might want to run the server and client on the same machine.
 
 
-Requirements (Server)
----------------------
-* MySql
-
-Requirements (Client)
----------------------
+Requirements
+------------
 *  .NET 3.5 runtime or Mono equivalent
-*  sqlite3 library installed if in Linux
+*  sqlite3 library installed if in Linux (on the client side)
+*  MySQL (on the server side)
 
 
 Quickstart
@@ -38,9 +35,9 @@ Configure Mybox server
 
       $ mono ServerSetup.exe
 
-Start the Mybox server process as the same user who hosts the Owncloud files
+Start the Mybox server process
 
-      $ sudo mono Server.exe
+      $ mono Server.exe
 
 
 ### On the client machine ###
