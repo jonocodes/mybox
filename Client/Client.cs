@@ -30,12 +30,10 @@ namespace mybox {
   /// <summary>
   /// The command line interface to the client connection
   /// </summary>
-  class Client {
-
-    //private delegate void setStatusHandler(ClientStatus status);
+  public class Client {
 
     private void setStatus(ClientStatus status) {
-      Console.WriteLine ("Status: " + status.ToString ());
+//      Console.WriteLine("Status: " + status.ToString());
     }
 
     /// <summary>
@@ -58,7 +56,11 @@ namespace mybox {
     /// </summary>
     /// <param name="message"></param>
     private static void logToConsole(String message) {
+#if DEBUG
+      Console.WriteLine("CLIENT : {0}", message);
+#else
       Console.WriteLine(DateTime.Now + " : " + message);
+#endif
     }
 
     public Client(String configDir) {
@@ -69,12 +71,12 @@ namespace mybox {
 
       try {
         ClientServerConnection.SetConfigDir(configDir);
-        ClientServerConnection client = new ClientServerConnection();
-        client.LoadConfig(ClientServerConnection.ConfigFile);
-        client.Start();
+        ClientServerConnection clientConnection = new ClientServerConnection();
+        clientConnection.LoadConfig(ClientServerConnection.ConfigFile);
+        clientConnection.Start();
       }
       catch (Exception e) {
-        logToConsole("Error: " + e.Message);
+        logToConsole("Error: " + e.Message + "\n" + e.StackTrace);
         logToFile("Error: " + e.Message);
 #if DEBUG
         Console.WriteLine("Press any key to quit...");

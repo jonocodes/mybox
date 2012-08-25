@@ -62,6 +62,8 @@ namespace mybox
 
     // TODO: should this be abstract so we can reuse code
 
+    // TODO: write RebuildFileTable, to checksum all files on system when the DB is emptied
+
     String GetDataDir(ServerUser user);
 
     String BaseDataDir { get; }
@@ -69,6 +71,8 @@ namespace mybox
     String DefaultConnectionString { get; }
 
     void Connect(String connectionString, String baseDataDir);
+    
+    void RebuildFilesTable();
 
     bool CheckPassword(String pwordOrig, String pwordHashed);
 
@@ -81,7 +85,12 @@ namespace mybox
     /// <param name='user'>
     /// This account.
     /// </param>
-    List<List<string>> GetFileListSerializable(ServerUser user);
+    //List<List<string>> GetFileListSerializable(ServerUser user);
+    
+    List<List<string>> GetDirListSerializable(ServerUser user, String path);
+
+
+    void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId);
 
     /// <summary>
     /// Update or insert a new entry for the file into the database
@@ -91,7 +100,7 @@ namespace mybox
     /// </returns>
     /// <param name='user'></param>
     /// <param name='thisFile'></param>
-    bool UpdateFile(ServerUser user, MyFile thisFile);
+    int UpdateFile(ServerUser user, MyFile thisFile);
 
     /// <summary>
     /// Removes the file entry from the database.
@@ -99,7 +108,7 @@ namespace mybox
     /// <returns></returns>
     /// <param name='user'></param>
     /// <param name='filePath'></param>
-    bool RemoveFile(ServerUser user, String filePath);
+    int RemoveFile(ServerUser user, String filePath);
 
     /// <summary>
     /// Get the number of entries in the accounts table

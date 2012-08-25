@@ -30,7 +30,6 @@ using System.Data;
 using System.Diagnostics;
 using System.Reflection;
 using System.Linq;
-using Newtonsoft.Json;
 
 
 namespace mybox {
@@ -61,6 +60,15 @@ namespace mybox {
     public static readonly String CONFIG_BACKEND = "backend";
 
 
+    public static void WriteMessage(String message) {
+#if DEBUG
+      Console.WriteLine("SERVER: {0}", message);
+#else
+      Console.WriteLine(DateTime.Now + " : " + message);
+#endif
+    
+    }
+
     #endregion
 
     /// <summary>
@@ -69,10 +77,11 @@ namespace mybox {
     /// <param name="configFile"></param>
     public Server(String configFile) {
 
-      Console.WriteLine("Starting server");
-      Console.WriteLine("Loading config file " + configFile);
+      WriteMessage("Starting server");
+      WriteMessage("Loading config file " + configFile);
 
       serverDB = LoadConfig(configFile);
+      serverDB.RebuildFilesTable();
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
 
@@ -80,15 +89,15 @@ namespace mybox {
         tcpListener.Start();
       }
       catch (SocketException e) {
-        Console.WriteLine("Unable to start listener on port " + Port + e.Message);
+        WriteMessage("Unable to start listener on port " + Port + e.Message);
         throw;
       }
 
       while (true) {
-        Console.WriteLine(" waiting for client to connect...");
+        WriteMessage(" waiting for client to connect...");
         Socket listenerSocket = tcpListener.AcceptSocket();
 
-        Console.WriteLine("Client connected with handle " + listenerSocket.Handle);
+        WriteMessage("Client connected with handle " + listenerSocket.Handle);
         ServerClientConnection client = new ServerClientConnection(this, listenerSocket);
         clients.Add(listenerSocket.Handle, client);
       }
@@ -121,6 +130,8 @@ namespace mybox {
         String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
         String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
         Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
+
+        baseDataDir = Common.EndDirWithoutSlash(baseDataDir);
 
         serverDB = (IServerDB)Activator.CreateInstance(dbType);
         serverDB.Connect(serverDbConnectionString, baseDataDir);
@@ -163,35 +174,49 @@ namespace mybox {
         }
       }
     }
-
-    /// <summary>
-    /// Send catchup commands to all connected clients attached to the same account
-    /// </summary>
-    /// <param name="myHandle">the handle of the client with the originating signal</param>
-    /// <param name="accountId">the account that the client belongs to</param>
-    /// <param name="inputOperation">the original operation that was made</param>
-    /// <param name="arg">additional arguments to send along with the operation</param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public void SpanCatchupOperation(IntPtr myHandle, String accountId, Signal inputOperation, String arg) {
-
+    
+/*
+    public void TellClientsToSync(IntPtr myHandle, String accountId) {
+    
       HashSet<IntPtr> thisMap = multiClientMap[accountId];
 
       foreach (IntPtr thisHandle in thisMap) {
         if (thisHandle == myHandle)
           continue;
-
-        Console.WriteLine("spanCatchupOperation from " + myHandle + " to " + thisHandle + " (" + inputOperation.ToString() + "," + arg + ")");
-
-        try {
-          clients[thisHandle].SendCatchup(inputOperation, arg);
-        }
-        catch (Exception e) {
-          Console.WriteLine("Exception in spanCatchupOperation " + e.Message);
-          Common.ExitError();
-        }
-      }
-
+          
+      clients[thisHandle].TellClientToSync();
+    
     }
+*/
+
+//    /// <summary>
+//    /// Send catchup commands to all connected clients attached to the same account
+//    /// </summary>
+//    /// <param name="myHandle">the handle of the client with the originating signal</param>
+//    /// <param name="accountId">the account that the client belongs to</param>
+//    /// <param name="inputOperation">the original operation that was made</param>
+//    /// <param name="arg">additional arguments to send along with the operation</param>
+//    [MethodImpl(MethodImplOptions.Synchronized)]
+//    public void SpanCatchupOperation(IntPtr myHandle, String accountId, Signal inputOperation, String arg) {
+//
+//      HashSet<IntPtr> thisMap = multiClientMap[accountId];
+//
+//      foreach (IntPtr thisHandle in thisMap) {
+//        if (thisHandle == myHandle)
+//          continue;
+//
+//        WriteMessage("spanCatchupOperation from " + myHandle + " to " + thisHandle + " (" + inputOperation.ToString() + "," + arg + ")");
+//
+//        try {
+//          clients[thisHandle].SendCatchup(inputOperation, arg);
+//        }
+//        catch (Exception e) {
+//          WriteMessage("Exception in spanCatchupOperation " + e.Message);
+//          Common.ExitError();
+//        }
+//      }
+//
+//    }
 
     /// <summary>
     /// Disconnect a ServerClientConnection from the server
@@ -204,11 +229,11 @@ namespace mybox {
         ServerClientConnection toTerminate = clients[handle];
   
         if (toTerminate.User != null) {
-          Console.WriteLine("Removing client " + handle + " " + toTerminate.User);
+          WriteMessage("Removing client " + handle + " " + toTerminate.User);
           RemoveFromMultiMap(toTerminate.User.id, handle);
         }
         else
-          Console.WriteLine("Removing accountless client " + handle);
+          WriteMessage("Removing accountless client " + handle);
         /*
         try {
           toTerminate.StopListener();

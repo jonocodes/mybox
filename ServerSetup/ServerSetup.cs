@@ -32,18 +32,48 @@ namespace mybox {
   /// <summary>
   /// Command line executable for configuring the server
   /// </summary>
-  class ServerSetup {
+  public class ServerSetup {
 
-    private int port = Server.Port;
+    public static bool WriteConfig(String configFile, int port, Type backend, 
+      String serverDbConnectionString, String baseDataDir)
+    {
+
+      string configDir = Path.GetDirectoryName(configFile);
+
+      if (!Directory.Exists(configDir)) {
+        if (!Common.CreateLocalDirectory(configDir)) {
+          Console.WriteLine("Unable to create config directory " + configDir);
+          Common.ExitError ();
+        }
+      }
+
+      // TODO: handle existing file
+
+      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
+        file.WriteLine("[settings]");
+        file.WriteLine(Server.CONFIG_PORT + "=" + port);
+        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
+        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
+        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
+      }
+
+      Console.WriteLine ("Config file written: " + configFile);
+
+      return true;
+    }
+
+    private ServerSetup () {
+
+      Console.WriteLine ("Welcome to the Mybox server setup wizard");
+
+      int port = Server.Port;
 //    private int defaultQuota = Server.DefaultQuota;
-    private Type backend = typeof(MySqlDB);
+      Type backend = typeof(SqliteDB);
 
-    private String configFile = Server.DefaultConfigFile;
-    private String serverDbConnectionString;
-    private String baseDataDir;
-
-    private void gatherInput() {
-
+      String configFile = Server.DefaultConfigFile;
+      String serverDbConnectionString;
+      String baseDataDir;
+    
       String input = null;
       IServerDB serverDB = null;
 
@@ -78,6 +108,9 @@ namespace mybox {
 
       int accounts = serverDB.UsersCount();
       Console.WriteLine("  The database currently contains " + accounts + " accounts");
+      
+      Console.WriteLine("Rebuilding files table from filesystem");
+      serverDB.RebuildFilesTable();
 
       if (accounts == 0)
         Console.WriteLine("You will not be able to to use Mybox unless user are created on the server.");
@@ -88,41 +121,8 @@ namespace mybox {
       if (input != String.Empty)
         configFile = input;
 
-    }
 
-    private bool saveConfig () {
-
-      string configDir = Path.GetDirectoryName(configFile);
-
-      if (!Directory.Exists(configDir)) {
-        if (!Common.CreateLocalDirectory(configDir)) {
-          Console.WriteLine("Unable to create config directory " + configDir);
-          Common.ExitError ();
-        }
-      }
-
-      // TODO: handle existing file
-
-      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
-        file.WriteLine("[settings]");
-        file.WriteLine(Server.CONFIG_PORT + "=" + port);
-        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
-        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
-        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
-      }
-
-      Console.WriteLine ("Config file written: " + configFile);
-
-      return true;
-    }
-
-    private ServerSetup () {
-
-      Console.WriteLine ("Welcome to the Mybox server setup wizard");
-
-      gatherInput();
-
-      if (!saveConfig()) {
+      if (!WriteConfig(configFile, port, backend, serverDbConnectionString, baseDataDir)) {
         Console.WriteLine("Unable to save config file.");
         Common.ExitError();
       }

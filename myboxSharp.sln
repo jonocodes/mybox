@@ -19,6 +19,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientGtk", "ClientGtk\Clie
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "md5sum", "md5sum\md5sum.csproj", "{5EB0E01D-1E4B-4130-B9E3-DCB7A054E36E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tester", "Tester\Tester.csproj", "{E44A01C4-A08B-44BC-B109-F835DD86F62A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManualTester", "ManualTester\ManualTester.csproj", "{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -35,6 +39,14 @@ Global
 		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|Mixed Platforms.Build.0 = Release|x86
 		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|x86.ActiveCfg = Release|x86
 		{036D7623-59EE-4218-9545-540D50A3D00D}.Release|x86.Build.0 = Release|x86
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Debug|Mixed Platforms.ActiveCfg = Debug|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Debug|Mixed Platforms.Build.0 = Debug|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Debug|x86.ActiveCfg = Debug|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Debug|x86.Build.0 = Debug|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Release|Mixed Platforms.ActiveCfg = Release|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Release|Mixed Platforms.Build.0 = Release|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Release|x86.ActiveCfg = Release|Mixed Platforms
+		{26CC1497-F5C0-4FE3-A847-5A6EBB30BACD}.Release|x86.Build.0 = Release|Mixed Platforms
 		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|Mixed Platforms.ActiveCfg = Debug|Mixed Platforms
 		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|Mixed Platforms.Build.0 = Debug|Mixed Platforms
 		{4C378D08-B7E4-4415-9ED1-8EBF724333D5}.Debug|x86.ActiveCfg = Debug|Mixed Platforms
@@ -90,6 +102,14 @@ Global
 		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|Mixed Platforms.Build.0 = Release|x86
 		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|x86.ActiveCfg = Release|x86
 		{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}.Release|x86.Build.0 = Release|x86
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Debug|Mixed Platforms.ActiveCfg = Debug|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Debug|Mixed Platforms.Build.0 = Debug|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Debug|x86.ActiveCfg = Debug|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Debug|x86.Build.0 = Debug|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|Mixed Platforms.ActiveCfg = Release|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|Mixed Platforms.Build.0 = Release|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|x86.ActiveCfg = Release|Mixed Platforms
+		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|x86.Build.0 = Release|Mixed Platforms
 		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
 		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.Build.0 = Debug|x86
 		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|x86.ActiveCfg = Debug|x86
@@ -105,6 +125,7 @@ Global
 		$0.TextStylePolicy = $1
 		$1.FileWidth = 120
 		$1.TabWidth = 2
+		$1.IndentWidth = 2
 		$1.NoTabsAfterNonTabs = True
 		$1.inheritsSet = VisualStudio
 		$1.inheritsScope = text/plain
@@ -125,6 +146,9 @@ Global
 		$0.StandardHeader = $4
 		$4.Text = 
 		$4.IncludeInNewFiles = True
+		$0.DotNetNamingPolicy = $5
+		$5.DirectoryNamespaceAssociation = None
+		$5.ResourceNamePolicy = FileFormatDefault
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

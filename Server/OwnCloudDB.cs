@@ -1,4 +1,4 @@
-﻿/**
+/**
     Mybox
     https://github.com/jonocodes/mybox
  
@@ -122,6 +122,19 @@ namespace mybox {
       return false;
     }
 
+    public void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId) {
+  
+    }
+    
+    public List<List<string>> GetDirListSerializable(ServerUser user, String path) {
+      // TODO: copy from MySql.cs
+      return null;
+    }
+    
+    public void RebuildFilesTable() {
+      // TODO: populate function
+    }
+/*
     /// <summary>
     /// Gets the file list in a manner that is easy to serialize and send.
     /// </summary>
@@ -156,7 +169,7 @@ namespace mybox {
 
       return fileList;
     }
-
+*/
     /// <summary>
     /// Update or insert a new entry for the file into the database
     /// </summary>
@@ -169,8 +182,8 @@ namespace mybox {
 
       // TODO: use OwnCloud API calls if possible perhaps: http://owncloud.org/dev/apps/database/
 
-      string path = "/" + user.id + "/files/" + thisFile.name;
-      string absPath = GetDataDir(user) + thisFile.name; //Server.baseDataDir + path;
+      string path = "/" + user.id + "/files/" + thisFile.Path;
+      string absPath = GetDataDir(user) + thisFile.Path; //Server.baseDataDir + path;
       FileInfo f = new FileInfo (absPath);
       long mtime = Common.DateTimeToUnixTimestamp(f.LastWriteTimeUtc);
 

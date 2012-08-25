@@ -1,4 +1,4 @@
-﻿/**
+/**
     Mybox
     https://github.com/jonocodes/mybox
  
@@ -25,7 +25,7 @@ using System.Text;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.IO;
-using Newtonsoft.Json;
+using System.Web.Script.Serialization;
 
 namespace mybox {
 
@@ -40,11 +40,15 @@ namespace mybox {
     private Server server;  // parent
     private IntPtr handle = IntPtr.Zero;
 
-    private Queue<String> outQueue = new Queue<String>();
+    //private Queue<String> outQueue = new Queue<String>();
     private String dataDir = null;
     private byte[] inputSignalBuffer = new byte[1];
 
     public ServerUser User = null;
+
+    private JavaScriptSerializer jsonSerializer = new JavaScriptSerializer();
+    
+    private HashSet<int> updatedDirectories = new HashSet<int>();
 
     #endregion
 
@@ -72,7 +76,7 @@ namespace mybox {
       try {
         int count = socket.EndReceive(iar);
         if (count == 0) {
-          Console.WriteLine("closed by remote host");
+          Server.WriteMessage("closed by remote host");
           close();
         }
         else {
@@ -82,7 +86,7 @@ namespace mybox {
         }
       }
       catch (Exception e) {
-        Console.WriteLine("closed by remote host with exception " + e.Message +"\n" + e.StackTrace);
+        Server.WriteMessage("closed by remote host with exception: " + e.Message +"\n" + e.StackTrace);
         close();
       }
     }
@@ -97,10 +101,10 @@ namespace mybox {
     /// </summary>
     private void close() {
 
-//      Console.WriteLine("close called on server " + server + " eq " + (server != null));
+//      Server.WriteMessage("close called on server " + server + " eq " + (server != null));
 
       if (server != null) {
-//        Console.WriteLine("removing connection");
+//        Server.WriteMessage("removing connection");
         server.RemoveConnection(handle);
       }
     }
@@ -108,10 +112,10 @@ namespace mybox {
     [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToClient(Signal signal) {
       try {
-        socket.Send(Common.SignalToBuffer(signal));
+//        socket.Send(Common.SignalToBuffer(signal));
       }
       catch (IOException ioe) {
-        Console.WriteLine(handle + " ERROR sending: " + ioe.Message);
+        Server.WriteMessage(handle + " ERROR sending: " + ioe.Message);
         close();
       }
     }
@@ -127,12 +131,12 @@ namespace mybox {
       User = server.serverDB.GetUserByName(userName);
 
       if (User == null) {
-        Console.WriteLine("User does not exist: " + userName); // TODO: return false?
+        Server.WriteMessage("User does not exist: " + userName); // TODO: return false?
         return false;
       }
 
       if (!server.serverDB.CheckPassword(password, User.password)) {
-        Console.WriteLine("Password incorrect for: " + userName);
+        Server.WriteMessage("Password incorrect for: " + userName);
         return false;
       }
 
@@ -143,29 +147,15 @@ namespace mybox {
         try {
           Directory.CreateDirectory(dataDir); // TODO: make recursive
         } catch (Exception) {
-          Console.WriteLine("Unable to find or create data directory: " + dataDir);
+          Server.WriteMessage("Unable to find or create data directory: " + dataDir);
           return false;
         }
       }
 
-      Console.WriteLine("Attached account " + userName + " to handle " + handle);
-      Console.WriteLine("Local server storage in: " + dataDir);
+      Server.WriteMessage("Attached account " + userName + " to handle " + handle);
+      Server.WriteMessage("Local server storage in: " + dataDir);
 
       return true;
-    }
-
-    /// <summary>
-    /// Check the outgoing queue for files to send to the client and then send them!
-    /// </summary>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void processOutQueue() {
-
-      if (outQueue.Count > 0) {
-        sendCommandToClient(Signal.s2c);
-        Common.SendFile(outQueue.Dequeue(), socket, dataDir); // TODO: check return value
-        processOutQueue();
-      }
-
     }
 
     /// <summary>
@@ -174,78 +164,83 @@ namespace mybox {
     /// <param name="signal"></param>
     private void handleInput(Signal signal) {
 
-      Console.WriteLine("Handling input for signal " + signal);
+      Server.WriteMessage("Handling input for signal " + signal);
 
       switch (signal) {
+          
+        case Signal.syncFinished:
+          
+          server.serverDB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
+          
+          updatedDirectories.Clear();
+          
+          // TODO:  server.TellClientsToSync(handle, User.id);
+          // here is where we will tell the other clients to sync
+          
+          
+          break;
+
+        case Signal.clientWants:
+          String relPath = Common.ReceiveString(socket);
+          if (File.Exists(dataDir + relPath)) {
+          
+//            sendCommandToClient(Signal.s2c);
+            Common.SendFile(relPath, socket, dataDir); // TODO: check return value
+          
+            //outQueue.Enqueue(relPath);
+            //processOutQueue();
+          }
+          break;
+
         case Signal.c2s:
 
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
           if (newFile != null)
-            server.serverDB.UpdateFile(User, newFile);
+            updatedDirectories.Add(server.serverDB.UpdateFile(User, newFile));
 
-          server.SpanCatchupOperation(handle, User.id, signal, newFile.name);
+          //server.SpanCatchupOperation(handle, User.id, signal, newFile.Path);
           break;
-
-        //case Signal.clientWantsToSend:
-        //  String relPath = Common.ReceiveString(socket);
-        //  long timestamp = Common.ReceiveTimestamp(socket);
-
-        //  sendCommandToClient(Signal.clientWantsToSend_response);
-
-        //  Common.SendString(socket, relPath);
-
-        //  // reply 'yes' if it refers to a file that does not exist or if the times do not match
-        //  if (File.Exists(dataDir + relPath) && Common.GetModTime(dataDir + relPath) == timestamp) {
-        //    Common.SendString(socket, "no");
-        //  }
-        //  else {
-        //    Common.SendString(socket, "yes");
-        //  }
-        //  break;
-
-        case Signal.clientWants:
-          String relPath = Common.ReceiveString(socket);
-          if (File.Exists(dataDir + relPath)) {
-            outQueue.Enqueue(relPath);
-            processOutQueue();
-          }
-          break;
-
+          
         case Signal.deleteOnServer:
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath))
-            server.serverDB.RemoveFile(User, relPath);
-//            index.Remove(relPath);  // TODO: check return value
+            updatedDirectories.Add(server.serverDB.RemoveFile(User, relPath)); // TODO: check return value, or exception
 
-          server.SpanCatchupOperation(handle, User.id, signal, relPath);
+          //server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.createDirectoryOnServer:
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
-            server.serverDB.UpdateFile(User, new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath)
-            , 0, "0"));
+            updatedDirectories.Add(server.serverDB.UpdateFile(User,
+              new MyFile(relPath, FileType.DIR, 0, 0, Common.Md5Hash(string.Empty))));
 
-          server.SpanCatchupOperation(handle, User.id, signal, relPath);
+          //server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.requestServerFileList:
 
-          List<List<string>> fileListToSerialize = server.serverDB.GetFileListSerializable(User);
+          String path = Common.ReceiveString(socket);
+          //if (path == ".")
+          //  path = string.Empty;
+          
+          Server.WriteMessage("checking DB for file list for path: " + path);
+          
+          List<List<string>> fileListToSerialize = server.serverDB.GetDirListSerializable(User, path);
 
-          String jsonOutStringFiles = JsonConvert.SerializeObject(fileListToSerialize);
+          String jsonOutStringFiles = jsonSerializer.Serialize(fileListToSerialize);  //JsonConvert.SerializeObject(fileListToSerialize);
 
-          Console.WriteLine("sending json file list: " + jsonOutStringFiles);
+          Server.WriteMessage("sending json file list: " + jsonOutStringFiles);
 
           try {
-            sendCommandToClient(Signal.requestServerFileList_response);
+//            sendCommandToClient(Signal.requestServerFileList_response);
             Common.SendString(socket, jsonOutStringFiles);
           }
           catch (Exception e) {
-            Console.WriteLine("Error during " + Signal.requestServerFileList_response + e.Message);
+            Server.WriteMessage("Error during " + Signal.requestServerFileList_response + e.Message);
             Common.ExitError();
           }
 
@@ -255,9 +250,9 @@ namespace mybox {
 
           String args = Common.ReceiveString(socket);
 
-          Console.WriteLine("received " + args);
+          Server.WriteMessage("received " + args);
 
-          List<string> attachInput = JsonConvert.DeserializeObject<List<string>>(args);
+          List<string> attachInput = jsonSerializer.Deserialize<List<string>>(args); //JsonConvert.DeserializeObject<List<string>>(args);
 
           String userName = attachInput[0];
           String password = attachInput[1];
@@ -279,74 +274,74 @@ namespace mybox {
             close ();
             // TODO: disconnect the client here
           }
-
-          String jsonOutString = JsonConvert.SerializeObject(jsonOut);
+          
+          String jsonOutString = jsonSerializer.Serialize(jsonOut); // String jsonOutString = JsonConvert.SerializeObject(jsonOut);
 
           try {
-            sendCommandToClient(Signal.attachaccount_response);
+//            sendCommandToClient(Signal.attachaccount_response);
             Common.SendString(socket, jsonOutString);
           }
           catch (Exception e) {
-            Console.WriteLine("Error during " + Signal.attachaccount_response + e.Message);
+            Server.WriteMessage("Error during " + Signal.attachaccount_response + e.Message);
             Common.ExitError();
           }
 
-          Console.WriteLine("attachaccount_response: " + jsonOutString);
+          Server.WriteMessage("attachaccount_response: " + jsonOutString);
 
           break;
 
         default:
-          Console.WriteLine("Unknown command");
+          Server.WriteMessage("Unknown command");
           break;
 
       }
 
     }
 
-    /// <summary>
-    /// Send catchup operation to the client based on the original inputOperation
-    /// </summary>
-    /// <param name="inputOperation">the initial operation for which to determine an output operation</param>
-    /// <param name="arg">additional arguments for the input/output operation</param>
-    public void SendCatchup(Signal inputOperation, String arg) {
-
-      if (inputOperation == Signal.c2s) {
-        try {
-          Console.WriteLine("catchup s2c to client (" + handle + "): " + arg);
-          if (File.Exists(dataDir + arg)) {
-            sendCommandToClient(Signal.s2c);
-            Common.SendFile(arg, socket, dataDir);
-          }
-        }
-        catch (Exception e) {
-          Console.WriteLine("catchup s2c to client failed: " + e.Message);
-        }
-      }
-      else if (inputOperation == Signal.deleteOnServer) {  // handles files and directories?
-        try {
-          Console.WriteLine("catchup delete to client (" + handle + "): " + arg);
-          sendCommandToClient(Signal.deleteOnClient);
-          Common.SendString(socket, arg);
-        }
-        catch (Exception e) {
-          Console.WriteLine("catchup delete to client failed: " + e.Message);
-        }
-      }
-      else if (inputOperation == Signal.createDirectoryOnServer) {
-        try {
-          Console.WriteLine("catchup createDirectoryOnClient (" + handle + "): " + arg);
-          sendCommandToClient(Signal.createDirectoryOnClient);
-          Common.SendString(socket, arg);
-        }
-        catch (Exception e) {
-          Console.WriteLine("catchup createDirectoryOnClient failed: " + e.Message);
-        }
-      }
-      else {
-        Console.WriteLine("unknown command: " + inputOperation);
-      }
-
-    }
+//    /// <summary>
+//    /// Send catchup operation to the client based on the original inputOperation
+//    /// </summary>
+//    /// <param name="inputOperation">the initial operation for which to determine an output operation</param>
+//    /// <param name="arg">additional arguments for the input/output operation</param>
+//    public void SendCatchup(Signal inputOperation, String arg) {
+//
+//      if (inputOperation == Signal.c2s) {
+//        try {
+//          Server.WriteMessage("catchup s2c to client (" + handle + "): " + arg);
+//          if (File.Exists(dataDir + arg)) {
+//            sendCommandToClient(Signal.s2c);
+//            Common.SendFile(arg, socket, dataDir);
+//          }
+//        }
+//        catch (Exception e) {
+//          Server.WriteMessage("catchup s2c to client failed: " + e.Message);
+//        }
+//      }
+//      else if (inputOperation == Signal.deleteOnServer) {  // handles files and directories?
+//        try {
+//          Server.WriteMessage("catchup delete to client (" + handle + "): " + arg);
+//          sendCommandToClient(Signal.deleteOnClient);
+//          Common.SendString(socket, arg);
+//        }
+//        catch (Exception e) {
+//          Server.WriteMessage("catchup delete to client failed: " + e.Message);
+//        }
+//      }
+//      else if (inputOperation == Signal.createDirectoryOnServer) {
+//        try {
+//          Server.WriteMessage("catchup createDirectoryOnClient (" + handle + "): " + arg);
+//          sendCommandToClient(Signal.createDirectoryOnClient);
+//          Common.SendString(socket, arg);
+//        }
+//        catch (Exception e) {
+//          Server.WriteMessage("catchup createDirectoryOnClient failed: " + e.Message);
+//        }
+//      }
+//      else {
+//        Server.WriteMessage("unknown command: " + inputOperation);
+//      }
+//
+//    }
 
 
   }

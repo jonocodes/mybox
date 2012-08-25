@@ -31,7 +31,7 @@ namespace mybox {
   /// <summary>
   /// Command line executable for configuring the client
   /// </summary>
-  class ClientSetup {
+  public class ClientSetup {
 
     private ClientAccount account = null;
     private String configDir = null;
@@ -75,7 +75,7 @@ namespace mybox {
       if (input != String.Empty) account.Password = input;
     }
 
-    private bool saveConfig() {
+    public static bool WriteConfig(ClientAccount account) {
     
       // TODO: handle existing file
 
@@ -87,8 +87,6 @@ namespace mybox {
 //        file.WriteLine("salt=" + account.Salt);
         file.WriteLine(ClientServerConnection.CONFIG_PASSWORD + "=" + account.Password);
         file.WriteLine(ClientServerConnection.CONFIG_DIR + "=" + account.Directory);
-
-        Console.WriteLine("pass: " + account.Password);
       }
 
       Console.WriteLine("Config file written: " + ClientServerConnection.ConfigFile);
@@ -133,7 +131,7 @@ namespace mybox {
       client.StartGetAccountMode(account);
 
       // data directory
-      if (!Common.CreateLocalDirectory(account.Directory)) {
+      if (!Common.CreateLocalDirectory(account.Directory)) {  // TODO: copy this to client startup
         Console.WriteLine("Data directory could not be created: " + account.Directory);
         Common.ExitError();
       }
@@ -150,7 +148,7 @@ namespace mybox {
         // toss config file not found exception since it is expected for a new setup
       }
 
-      if (!saveConfig())
+      if (!WriteConfig(account))
         Console.WriteLine("Unable to save config file");
       else
         Console.WriteLine("Setup finished successfully");

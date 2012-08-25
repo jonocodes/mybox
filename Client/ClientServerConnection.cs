@@ -28,7 +28,7 @@ using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Newtonsoft.Json;
+using System.Web.Script.Serialization;
 
 namespace mybox {
 
@@ -38,6 +38,7 @@ namespace mybox {
   public enum ClientStatus {
     CONNECTING, DISCONNECTED, READY, SYNCING, PAUSED, ERROR
   }
+ 
 
   /// <summary>
   /// Structure for holding account info on the client side
@@ -65,16 +66,16 @@ namespace mybox {
 
     private const String configFileName = "client.ini";
     private const String logFileName = "client.log";
-    private const String indexFileName = "client_index.db";
+    private const String indexFileName = "client.db";
 
     private static String configFile = null;
     private static String logFile = null;
     private static FileIndex fileIndex = null;
-    private static String dataDir = null;
+    private static String absDataDir = null;
 
     // config file constants
 
-    public static readonly String CONFIG_SERVER = "serverName";
+    public static readonly String CONFIG_SERVER = "server";
     public static readonly String CONFIG_PORT = "serverPort";
     public static readonly String CONFIG_USER = "user";
     public static readonly String CONFIG_PASSWORD = "password";
@@ -82,18 +83,19 @@ namespace mybox {
 
     // state members
 
-    private Queue<String> outQueue = new Queue<String>();
-    private HashSet<String> incommingFiles = new HashSet<string>();
     private ClientAccount account = new ClientAccount();
-    private Dictionary<String, MyFile> S = new Dictionary<String, MyFile>();  // serverFileList
     private DirectoryWatcher directoryWatcher = null;
     private bool waiting = false;
-    private Signal lastReceivedOperation;
     private Socket socket = null;
-    private byte[] inputSignalBuffer = new byte[1];
     private Thread gatherDirectoryUpdatesThread;
 
     private bool paused = false;
+    
+    private DirSyncer dirSyncer = null;
+
+    public static JavaScriptSerializer JsonSerializer = new JavaScriptSerializer();
+    private byte[] inputSignalBuffer = new byte[1];
+    
 
     /// <summary>
     /// The timer that is used to wait for 2 seconds of silence before catchupSync is called
@@ -115,7 +117,7 @@ namespace mybox {
     }
 
     public String DataDir {
-      get { return dataDir; }
+      get { return absDataDir; }
     }
 
     public ClientAccount Account {
@@ -200,41 +202,13 @@ namespace mybox {
     public void Start() {
       attemptConnection(5);
 
-      enableDirListener();
+      //enableDirListener();
 
       writeMessage("Client ready. Startup sync.");
-
-      // if the index is missing, make it the same as the client listing. Then C vs I will produce no actions.
-      if (!fileIndex.FoundAtInit)
-        fileIndex.RefreshIndex(dataDir);
-
-      // perform an initial sync to catch all the files that have changed while the client was off
-      fullSync();
+      
+      sync();
     }
     
-    /// <summary>
-    /// Get a local file listing and store them in a filename=>MyFile dictionary
-    /// </summary>
-    /// <returns></returns>
-    private Dictionary<String, MyFile> getLocalFileList() {
-
-      Dictionary<String, MyFile> C = new Dictionary<String, MyFile>();
-
-      try {
-
-        List<MyFile> files = Common.GetFilesRecursive(dataDir);
-
-        foreach (MyFile thisFile in files)
-          C.Add(thisFile.name, thisFile);        
-
-      } catch (Exception e) {
-        writeMessage("Error populating local file list " + e.Message);
-      }
-
-      return C;
-
-    }
-
     /// <summary>
     /// Load a config file and set member variables accordingly
     /// </summary>
@@ -277,173 +251,10 @@ namespace mybox {
         throw new Exception("Directory " + account.Directory + " does not exist");
       }
 
-      dataDir = account.Directory;
+      absDataDir = Common.EndDirWithoutSlash(account.Directory);
     }
 
-    /// <summary>
-    /// Check the outgoing queue for items and send them each to the server
-    /// </summary>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void processOutQueue() {
-
-      if (outQueue.Count > 0) {
-        setStatus(ClientStatus.SYNCING);
-        sendCommandToServer(Signal.c2s);
-        MyFile myFile = Common.SendFile(outQueue.Dequeue(), socket, dataDir);
-        if (myFile != null)
-          fileIndex.Update(myFile); // TODO: perform this after server confirmation
-
-        processOutQueue();
-      }
-
-      setStatus(ClientStatus.READY);
-    }
-
-    /// <summary>
-    /// Tell server to delete a file or folder
-    /// </summary>
-    /// <param name="name"></param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void deleteOnServer(String name) {
-
-      writeMessage("Telling server to delete item " + name);
-
-      try {
-        sendCommandToServer(Signal.deleteOnServer);
-        Common.SendString(socket, name);
-
-        // TODO: wait for reply before updating index
-        fileIndex.Remove(name);
-
-      } catch (Exception e) {
-        writeMessage("error requesting server item delete " + e.Message);
-      }
-    }
-
-    /// <summary>
-    /// Tell server to create directory
-    /// </summary>
-    /// <param name="name"></param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void createDirectoryOnServer(String name) {
-      writeMessage("Telling server to create directory " + name);
-
-      try {
-        sendCommandToServer(Signal.createDirectoryOnServer);
-        Common.SendString(socket, name);
-        // TODO: wait for reply to know that it was created on server before updating index
-        fileIndex.Update(new MyFile(name, 'd', Common.GetModTime(dataDir + name), 0, "0"));
-      } catch (Exception e) {
-        writeMessage("error requesting server directory create: " + e.Message);
-      }
-    }
-
-    /// <summary>
-    /// Ask server to send a file to this client
-    /// </summary>
-    /// <param name="name"></param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    private void requestFile(String name) {
-      writeMessage("Requesting file " + name);
-
-      try {
-        sendCommandToServer(Signal.clientWants);
-        Common.SendString(socket, name);
-
-      } catch (Exception e) {
-        writeMessage("error requesting file: " + e.Message);
-      }
-
-      incommingFiles.Add(name);
-    }
-
-    /// <summary>
-    /// Running sync routine that compares the client files to the index. Does not consult the server.
-    /// </summary>
-    private void catchupSync() {
-
-      writeMessage("disabling listener");
-      disableDirListener(); // hack while incoming set gets figured out
-
-      setStatus(ClientStatus.SYNCING);
-
-      // get full local file list
-      Dictionary<String, MyFile> C = getLocalFileList();
-
-      // get index list
-      Dictionary<String, MyFile> I = fileIndex.GetFiles();
-
-      // compare to local DB
-      writeMessage("catchupSync comparing C=" + C.Count + " to I=" + I.Count);
-
-      // TODO: index updates should be transactioned/prepared
-
-      foreach (KeyValuePair<String, MyFile> file in C) {
-
-        String name = file.Key;
-        MyFile c = file.Value;
-
-        if (I.ContainsKey(name)) {
-
-          // TODO: handle conflicts where a file and directory have the same name
-
-          MyFile i = I[name];
-
-          // if it is a file
-          if (!Directory.Exists(dataDir + name)) {
-
-            if (c.modtime != i.modtime) { // if times differ
-              writeMessage(name + " c.modtime=" + c.modtime + " i.modtime=" + i.modtime);
-
-              // if times differ, push the file to the server and update the index
-              writeMessage(name + " = transfer from client to server since file changed");
-              outQueue.Enqueue(c.name);
-            }
-
-          }
-
-          I.Remove(name);
-          // if it is a directory, do nothing because the files will already be coppied one by one
-
-        } else {  // if it exists in C and not in index, push to server
-
-          if (Directory.Exists(dataDir + name)) {
-            writeMessage(name + " = create directory on server since new directory");
-            createDirectoryOnServer(name);
-          } else {
-            writeMessage(name + " = transfer from client to server since new file");
-            outQueue.Enqueue(c.name);
-          }
-
-        }
-      }
-
-      // now process items that are in the index and not on the client
-
-      foreach (KeyValuePair<String, MyFile> file in I) {
-        writeMessage(file.Key + " = remove from server");
-        deleteOnServer(file.Key); // delete file or directory on server
-      }
-
-
-      // push changes to server
-
-      processOutQueue();
-
-      writeMessage("enableing listener since sync is done");
-      enableDirListener();
-
-//      writeMessage("Sync finished " + DateTime.UtcNow);
-
-      if (outQueue.Count == 0)
-        setStatus(ClientStatus.READY);
-
-      // TODO: set to READY once incomming finish
-
-      Thread.Sleep(2000);
-      checkSync();
-    }
-
+/*
     /// <summary>
     /// Compares the client to the client index to the server
     /// </summary>
@@ -454,350 +265,16 @@ namespace mybox {
 
       setStatus(ClientStatus.SYNCING);
 
-      writeMessage("fullSync started  " + DateTime.Now);
-
-      // TODO: update all time comparisons to respect server/client time differences
-
-      // populate S
-      // file list according to server
-      bool listReturned = serverDiscussion(Signal.requestServerFileList, Signal.requestServerFileList_response, null);
-
-      if (!listReturned) {
-        throw new Exception("requestServerFileList did not return in time");
-      }
-
-      // file list according to client filesystem
-      Dictionary<String, MyFile> C = getLocalFileList();
-
-      // file list according to client index database
-      Dictionary<String, MyFile> I = fileIndex.GetFiles();
-
-      // holds the name=>action according to the I vs C vs S comparison
-      Dictionary<String, Signal> fileActionList = new Dictionary<string, Signal>();
-
-      // here we make the assumption that fullSync() is only called once and right after initial connection
-      long lastSync = -1;
-
-      if (fileIndex.FoundAtInit) 
-        lastSync = fileIndex.LastUpdate;
-
-      writeMessage("fullSync comparing C=" + C.Count + " to I=" + I.Count + " to S=" + S.Count
-                   + "   lastSync=" + lastSync);
-
-
-      foreach (KeyValuePair<String, MyFile> file in C) {
-
-        String name = file.Key;
-        MyFile c = file.Value;
-
-        if (I.ContainsKey(name)) {
-
-          // TODO: handle conflicts where a file and directory have the same name
-
-          MyFile i = I[name];
-
-          // if it is a file
-          if (!Directory.Exists(dataDir + name)) {
-
-            if (c.modtime != i.modtime) { // if times differ
-              writeMessage(name + " " + " c.modtime=" + c.modtime + " i.modtime=" + i.modtime);
-              writeMessage(name + " = transfer from client to server since file changed");
-
-              fileActionList.Add(name, Signal.c2s);
-            }
-          }
-
-          I.Remove(name);
-
-          // if it is a directory, do nothing because the files will already be coppied one by one
-
-        }
-        else {  // if it exists in C and not in index, push to server
-
-          if (Directory.Exists(dataDir + name)) {
-            writeMessage(name + " = create directory on server since new directory");
-            fileActionList.Add(name, Signal.createDirectoryOnServer);
-          }
-          else {
-            writeMessage(name + " = transfer from client to server since new file");
-            fileActionList.Add(name, Signal.c2s);
-          }
-
-        }
-      }
-
-      // now process items that are in the index and not on the client
-
-      foreach (KeyValuePair<String, MyFile> file in I) {
-        // delete file or directory on server
-        writeMessage(file.Key + " = remove from server since it is in I but not C");
-        fileActionList.Add(file.Key, Signal.deleteOnServer);
-      }
-
-      writeMessage("finished addressing C vs I");
-
-
-      // TODO: handle case where there is the same name item but it is a file on the client and dir on server
-
-      foreach (KeyValuePair<String, MyFile> file in C) {
-
-        String name = file.Key;
-        MyFile c = file.Value;
-
-        if (S.ContainsKey(name)) {
-          MyFile s = S[name];
-
-          // if it is not a directory and the times are different, compare times
-          if (!Directory.Exists(dataDir + name) && c.modtime != s.modtime) {
-
-            writeMessage(name + " " + lastSync + " c.modtime=" + c.modtime + " s.modtime=" + s.modtime);
-
-            if (lastSync == -1) {
-              writeMessage(name + " = conflict, since index is gone the newest file cannot be determined");
-            }
-            else if (c.modtime > lastSync) {
-              if (s.modtime > lastSync) {
-                writeMessage(name + " = conflict (both client and server file are new)");
-              }
-              else {
-                writeMessage(name + " = transfer from client to server 1");
-
-                if (fileActionList.ContainsKey(name)) { // can this be turned into a nested function perhaps?
-                  if (fileActionList[name] != Signal.c2s) {
-                    // conflict
-                  }
-                } else {
-                  fileActionList.Add(name, Signal.c2s);
-                }
-
-              }
-            }
-            else {
-              if (s.modtime > c.modtime) {
-                writeMessage(name + " = transfer from server to client 1");
-
-                if (fileActionList.ContainsKey(name)) {
-                  if (fileActionList[name] != Signal.clientWants) {
-                    // conflict
-                  }
-                }
-                else {
-                  fileActionList.Add(name, Signal.clientWants);
-                }
-                // TODO: set overlay icon
-              }
-              else {
-                writeMessage(name + " = conflict (both client and server file are old)");
-              }
-            }
-          }
-          S.Remove(name);
-        }
-        else {
-
-          if (c.modtime > lastSync) { // will occur if index is missing since lastSync will be -1, thus performing a merge
-
-            if (Directory.Exists(dataDir + name)) {
-              writeMessage(name + " = create directory on server");
-
-              if (fileActionList.ContainsKey(name)) {
-                if (fileActionList[name] != Signal.createDirectoryOnServer) {
-                  // conflict
-                }
-              }
-              else {
-                fileActionList.Add(name, Signal.createDirectoryOnServer);
-              }
-
-            }
-            else {
-              writeMessage(name + " = transfer from client to server 2");
-
-              if (fileActionList.ContainsKey(name)) {
-                if (fileActionList[name] != Signal.c2s) {
-                  // conflict
-                }
-              }
-              else {
-                fileActionList.Add(name, Signal.c2s);
-              }
-
-            }
-
-          }
-          else {
-
-            writeMessage(name + " = remove on client");
-
-            if (fileActionList.ContainsKey(name)) {
-              if (fileActionList[name] != Signal.deleteOnClient) {
-                // conflict
-              }
-            }
-            else {
-              fileActionList.Add(name, Signal.deleteOnClient);
-            }
-
-          }
-
-        }
-      }
-
-      foreach (KeyValuePair<String, MyFile> file in S) {
-
-        String name = file.Key;
-        MyFile s = file.Value;
-
-        if (s.modtime > lastSync) { // will occur if index is missing since lastSync will be -1, thus performing a merge
-
-          if (s.type == 'd') {
-            writeMessage(name + " = create local directory on client");
-
-            if (fileActionList.ContainsKey(name)) {
-              if (fileActionList[name] != Signal.createDirectoryOnClient) {
-                // conflict
-              }
-            }
-            else {
-              fileActionList.Add(name, Signal.createDirectoryOnClient);
-            }
-
-          }
-          else {
-            writeMessage(name + " = transfer from server to client 2");
-
-            if (fileActionList.ContainsKey(name)) {
-              if (fileActionList[name] != Signal.clientWants) {
-                // conflict
-              }
-            }
-            else {
-              fileActionList.Add(name, Signal.clientWants);
-            }
-            // TODO: set overlay icon
-          }
-
-        }
-        else {
-
-          writeMessage(name + " = remove from server");  // file or directory
-
-          if (fileActionList.ContainsKey(name)) {
-            if (fileActionList[name] != Signal.deleteOnServer) {
-              // conflict
-            }
-          }
-          else {
-            fileActionList.Add(name, Signal.deleteOnServer);
-          }
-
-        }
-      }
-
-      // now process the fileLists
-
-      writeMessage("Processing " + fileActionList.Count + " items on action list...");
-
-      foreach (KeyValuePair<String, Signal> signalItem in fileActionList) {
-
-        writeMessage(" " + signalItem.Key + " => " + signalItem.Value);
-
-        switch (signalItem.Value) {
-          case Signal.c2s:
-            outQueue.Enqueue(signalItem.Key);
-            break;
-
-          case Signal.createDirectoryOnServer:
-            createDirectoryOnServer(signalItem.Key);
-            break;
-
-          case Signal.deleteOnServer:
-            deleteOnServer(signalItem.Key);
-            break;
-
-          case Signal.clientWants:
-            requestFile(signalItem.Key);
-            break;
-
-          case Signal.deleteOnClient:
-            if (Common.DeleteLocal(dataDir + signalItem.Key))
-              fileIndex.Remove(signalItem.Key);
-            break;
-
-          case Signal.createDirectoryOnClient:
-            if (Common.CreateLocalDirectory(dataDir + signalItem.Key))
-              fileIndex.Update(new MyFile(signalItem.Key, 'd', Common.GetModTime(dataDir + signalItem.Key),
-              0, "0"));
-            break;
-
-          default:
-            throw new Exception("Unhandled signal in action list");
-
-        }
-      }
+...
 
       processOutQueue();
 
       writeMessage("enableing listener since sync is done");
       enableDirListener();
 
-      writeMessage("Sync finished " + DateTime.Now);
 
-      if (incommingFiles.Count == 0)
-        setStatus(ClientStatus.READY);
-
-
-      Thread.Sleep(2000);
-      checkSync();
     }
-
-
-    /// <summary>
-    /// Debug function for checking if directories and index are in sync. To be performed after a sync finishes.
-    /// </summary>
-    private void checkSync() {
-
-      int count = 0;
-
-      writeMessage("checkSync...");
-
-      // populate S
-      bool listReturned = serverDiscussion(Signal.requestServerFileList, Signal.requestServerFileList_response, null);
-
-      if (!listReturned) {
-        throw new Exception("requestServerFileList did not return in time");
-        //Common.ExitError();
-      }
-
-      Dictionary<String, MyFile> C = getLocalFileList();
-
-      Dictionary<String, MyFile> I = fileIndex.GetFiles();
-
-      writeMessage("checkSync comparing C=" + C.Count + " to I=" + I.Count + " to S=" + S.Count);
-
-      foreach (KeyValuePair<String, MyFile> file in I) {
-        if (C.ContainsKey(file.Key) && S.ContainsKey(file.Key)) {
-          C.Remove(file.Key);
-          S.Remove(file.Key);
-        }
-        else {
-          writeMessage("mismatch: " + file.Key);
-          count++;
-        }
-      }
-
-      foreach (KeyValuePair<String, MyFile> file in S) {
-        writeMessage("mismatch: " + file.Key);
-        count++;
-      }
-
-      foreach (KeyValuePair<String, MyFile> file in C) {
-        writeMessage("mismatch: " + file.Key);
-        count++;
-      }
-
-      writeMessage("checkSync finished with " + count + " mismatches");
-    }
+*/
 
 
     //public void stop() {
@@ -814,6 +291,8 @@ namespace mybox {
     //  socket.Disconnect(false);
     //  socket.Close();
     //}
+
+
 
     /// <summary>
     /// Try to connect to the server and attach an account
@@ -842,23 +321,43 @@ namespace mybox {
 
       }
 
-//      writeMessage("Connected: " + socket);
-
-      listenToServer();
+//      listenToServer();
 
       List<string> outArgs = new List<string>();
       outArgs.Add(account.User);
       outArgs.Add(account.Password);
 
-      String jsonOut = JsonConvert.SerializeObject(outArgs);
+      String jsonOut = JsonSerializer.Serialize(outArgs); //JsonConvert.SerializeObject(outArgs);
 
-      Console.WriteLine("jsonOut: "+ jsonOut);
+      writeMessage("jsonOut: "+ jsonOut);
 
-      if (!serverDiscussion(Signal.attachaccount, Signal.attachaccount_response, jsonOut)) {
-        writeMessage("Unable to attach account");
-        throw new Exception("Unable to attach account");
+      sendCommandToServer(Signal.attachaccount);
+      Common.SendString(socket, jsonOut);
+      
+      // handleInput(Common.BufferToSignal(inputSignalBuffer));//attachaccount_reponse
+      
+      Dictionary<string, string> jsonMap =
+        JsonSerializer.Deserialize<Dictionary<string, string>>(Common.ReceiveString(socket));
+            //JsonConvert.DeserializeObject<Dictionary<string, string>>(Common.ReceiveString(socket));
+
+      if (jsonMap["status"] != "success") {// TODO: change to signal
+        writeMessage("Unable to attach account. Server response: " + jsonMap["error"]);
+        // TODO: catch these exceptions above somewhere
+        //throw new Exception("Unable to attach account. Server response: " + jsonMap["error"]);
+        //socket.Close();
+        Stop();
       }
+      else {
+        //writeMessage("set account salt to: " + account.Salt);
 
+        if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
+          writeMessage("Client and Server Mybox versions do not match");
+        }
+      }
+      
+
+      dirSyncer = new DirSyncer(absDataDir, fileIndex, socket);
+      
       setStatus(ClientStatus.READY);
     }
 
@@ -900,7 +399,7 @@ namespace mybox {
       writeMessage("Unpausing started");
 
       //listenToServer();
-      fullSync();
+      //fullSync();
       enableDirListener();
 
       writeMessage("Unausing finished");
@@ -938,51 +437,9 @@ namespace mybox {
 
       this.account = account;
 
-      writeMessage("Establishing connection to port " + account.ServerPort + ". Please wait ...");
-
       attemptConnection(5);
     }
-
-    /// <summary>
-    /// Sends a message to the server and then periodically polls for the expected response.
-    /// </summary>
-    /// <param name="messageToServer"></param>
-    /// <param name="expectedReturnCommand"></param>
-    /// <param name="argument">Optional additional string to send along with the signal</param>
-    /// <returns>true if the expected response returned before the wait expired</returns>
-    private bool serverDiscussion(Signal messageToServer, Signal expectedReturnCommand, String argument) {
-
-      int pollseconds = 1;  // TODO: make readonly globals
-      int pollcount = 30;  // amount of times to poll
-
-      writeMessage("serverDiscussion starting with expected return: " + expectedReturnCommand.ToString());
-      writeMessage("serverDiscussion sending message to server: " + messageToServer.ToString());
-
-      sendCommandToServer(messageToServer);
-      if (argument != null) {
-        //try {
-          Common.SendString(socket, argument);
-        //}
-        //catch (Exception e) {
-          //
-        //}
-      }
-
-      for (int i = 0; i < pollcount; i++) {
-        Thread.Sleep(pollseconds * 1000);
-        
-        if (expectedReturnCommand == lastReceivedOperation) {
-          writeMessage("serverDiscussion returning true with: " + lastReceivedOperation);
-          lastReceivedOperation = Signal.empty;
-          return true;
-        }
-      }
-
-      writeMessage("serverDiscussion returning false");
-      lastReceivedOperation = Signal.empty;
-
-      return false;
-    }
+    
 
     /// <summary>
     /// Connect a socket to a server and port
@@ -1046,7 +503,7 @@ namespace mybox {
     /// <param name="action">the type of change (currently not being used)</param>
     /// <param name="items">the item that changed</param>
     public void DirectoryUpdate(String action, String items) {
-      writeMessage("DirectoryUpdate " + action + " " + items);
+      writeMessage("Directory Listener Update " + action + " " + items);
 
       if (gatherDirectoryUpdatesThread != null && waiting) {
         resetSilenceTimer.Set(); // resets the timer
@@ -1071,7 +528,22 @@ namespace mybox {
 
       writeMessage("Wait finished.");
 
-      catchupSync();
+//      catchupSync();
+      sync();
+    }
+
+    private void sync() {
+    
+      setStatus(ClientStatus.SYNCING);
+
+      disableDirListener();
+
+      dirSyncer.Sync();
+      //listenToServer();
+      
+      enableDirListener();
+      
+      setStatus(ClientStatus.READY);
     }
 
     /// <summary>
@@ -1094,79 +566,14 @@ namespace mybox {
     /// <param name="signal"></param>
     private void handleInput(Signal signal) {
 
-      if (paused)
-        return;
+//      if (paused)
+//        return;
 
-      writeMessage("Handling input for signal " + signal);
-
-      // TODO: make sure these all update the index
-
-      setStatus(ClientStatus.SYNCING);
+      writeMessage("Client handling input for signal " + signal);
 
       switch (signal) {
-        case Signal.s2c:
-          MyFile newFile = Common.ReceiveFile(socket, dataDir);
-          if (newFile != null) {
-            fileIndex.Update(newFile);
-            incommingFiles.Remove(newFile.name);
-            setOverlay(true);
-          }
-          break;
-
-        case Signal.deleteOnClient:
-          // catchup operation
-          String relPath = Common.ReceiveString(socket);
-          if (Common.DeleteLocal(dataDir + relPath))
-            fileIndex.Remove(relPath);
-          break;
-
-        case Signal.createDirectoryOnClient:
-          // catchup operation
-          relPath = Common.ReceiveString(socket);
-          if (Common.CreateLocalDirectory(dataDir + relPath))
-            fileIndex.Update(new MyFile(relPath, 'd', Common.GetModTime(dataDir + relPath), 0, "0"));
-          
-          break;
-
-        case Signal.requestServerFileList_response:
-
-          String jsonStringFiles = Common.ReceiveString(socket);
-
-          List<List<string>> fileDict =
-            JsonConvert.DeserializeObject<List<List<string>>>(jsonStringFiles);
-
-          S.Clear();
-
-          foreach(List<string> fileItem in fileDict){
-            // TODO: try, catch for parse errors etc
-            S.Add(fileItem[0], new MyFile(fileItem[0], char.Parse(fileItem[1]), long.Parse(fileItem[2]),
-             long.Parse(fileItem[3]), fileItem[4] ));
-          }
-
-          break;
-
-        case Signal.attachaccount_response:
-
-          // TODO: replace JSON parser with simple text parsing so we dont have to lug around the dependency
-
-          Dictionary<string, string> jsonMap =
-            JsonConvert.DeserializeObject<Dictionary<string, string>>(Common.ReceiveString(socket));
-
-          if (jsonMap["status"] != "success") {// TODO: change to signal
-            writeMessage("Unable to attach account. Server response: " + jsonMap["error"]);
-            // TODO: catch these exceptions above somewhere
-            //throw new Exception("Unable to attach account. Server response: " + jsonMap["error"]);
-            //socket.Close();
-            Stop();
-          }
-          else {
-            //writeMessage("set account salt to: " + account.Salt);
-
-            if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
-              writeMessage("Client and Server Mybox versions do not match");
-            }
-          }
-
+        case Signal.serverRequestingSync:
+          sync();
           break;
 
         default:
@@ -1174,18 +581,13 @@ namespace mybox {
           break;
       }
 
-      lastReceivedOperation = signal;
-
-      if (incommingFiles.Count == 0 && outQueue.Count == 0)
-        setStatus(ClientStatus.READY);
-
     }
+    
 
     /// <summary>
     /// Listen to the server via threadless async callback
     /// </summary>
     private void listenToServer() {
-      //socket.Blocking = true;
       socket.BeginReceive(inputSignalBuffer, 0, 1, SocketFlags.None, new AsyncCallback(onReceiveSignalComplete), null);
     }
 
@@ -1201,8 +603,13 @@ namespace mybox {
           //close();
           Start();
         } else {
-          handleInput(Common.BufferToSignal(inputSignalBuffer));
-          listenToServer();
+        
+          if (Common.BufferToSignal(inputSignalBuffer) == Signal.serverRequestingSync) 
+            sync();
+          else
+            throw new Exception("Client received unknown signal " + inputSignalBuffer);
+
+//          listenToServer();
         }
       } catch (Exception) {
         writeMessage("closed by remote host");
@@ -1210,7 +617,6 @@ namespace mybox {
         Start();
       }
     }
-
 
   }
 

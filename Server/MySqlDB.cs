@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 #if DEBUG
         // password is 'badpassword'
         dbConnection.CreateCommand();
-        command.CommandText = @"INSERT IGNORE INTO `mybox`.`users` (`name`,`password`) VALUES ('test', '3693d93220b28a03d3c70bdc1cab2b890c65a2e6baff3d4a2a651b713c161c5c');";
+        command.CommandText = @"INSERT IGNORE INTO `users` (`name`,`password`) VALUES ('test', '3693d93220b28a03d3c70bdc1cab2b890c65a2e6baff3d4a2a651b713c161c5c');";
         command.ExecuteNonQuery();
 #endif
 
@@ -117,18 +117,63 @@ CREATE TABLE IF NOT EXISTS `users` (
       return baseDataDir + user.id + "/";
     }
 
+
+    public void RebuildFilesTable() {
+      // TODO: populate function
+    }
+    
+
     public bool CheckPassword(String pwordOrig, String pwordHashed) {
       // TODO: salt it!
       return (Common.Sha256Hash(pwordOrig) == pwordHashed);
     }
-
-    public List<List<string>> GetFileListSerializable(ServerUser thisAccount) {
+    
+    public List<List<string>> GetDirListSerializable(ServerUser user, String path) {
       List<List<string>> fileList = new List<List<string>>();
 
-      int startPath = ("/" + thisAccount.id + "/").Length + 1;
+      if (path == "/")
+        path = "";
+        
+      String dbPath = user.id + "/" + path;
+                  
+      DbCommand command = dbConnection.CreateCommand ();
+      command.CommandText = "SELECT id FROM files WHERE user='" + user.id + "' AND path = '"+ dbPath +"'";
+      DbReader reader = command.ExecuteReader ();
+      reader.Close();
+      
+      int parent = Convert.ToInt32(command.ExecuteScalar());
+      
+      command = dbConnection.CreateCommand();
+      command.CommandText = String.Format("SELECT * FROM files WHERE user='{0}' AND parent='{1}'", user.id, parent);
+      reader = command.ExecuteReader ();
+
+      while (reader.Read()) {
+        List<string> fileInfo = new List<string>();
+
+        String thisPath = reader["path"].ToString();
+
+        fileInfo.Add(thisPath.Substring(user.id.ToString().Length, thisPath.Length-1));
+        fileInfo.Add(reader["type"].ToString ());
+//        fileInfo.Add(reader["modtime"].ToString ());
+        fileInfo.Add(reader["size"].ToString());
+        fileInfo.Add(reader["checksum"].ToString());
+
+        fileList.Add(fileInfo);
+      }
+
+      reader.Close ();
+
+      return fileList;
+    }
+    
+/*
+    public List<List<string>> GetFileListSerializable(ServerUser user) {
+      List<List<string>> fileList = new List<List<string>>();
+
+      int startPath = (user.id + "/").Length + 1;
 
       DbCommand command = dbConnection.CreateCommand ();
-      command.CommandText = "SELECT substr(path, " + startPath + ") as path, type, modtime, size, checksum FROM files WHERE user='" + thisAccount.id + "' AND substr(path, " + startPath + ") != ''";
+      command.CommandText = "SELECT substr(path, " + startPath + ") as path, type, modtime, size, checksum FROM files WHERE user='" + user.id + "' AND substr(path, " + startPath + ") != ''";
       DbReader reader = command.ExecuteReader ();
 
       while (reader.Read()) {
@@ -143,14 +188,14 @@ CREATE TABLE IF NOT EXISTS `users` (
         fileList.Add(fileInfo);
       }
 
-      reader.Close ();
+      reader.Close();
 
       return fileList;
     }
-
+*/
     public bool UpdateFile(ServerUser user, MyFile thisFile) {
 
-      string path = "/" + user.id + "/" + thisFile.name;
+      string path = user.id + thisFile.Path;
 
       DbCommand command_checkExists = dbConnection.CreateCommand();
       command_checkExists.CommandText = "SELECT count(id) FROM files WHERE path='"+ path +"'";
@@ -160,19 +205,21 @@ CREATE TABLE IF NOT EXISTS `users` (
       DbCommand command = dbConnection.CreateCommand();
 
       if (checkFound > 0) {
-        command.CommandText = "UPDATE files SET modtime='" + thisFile.modtime + "' WHERE path='"+ path +"'";
+        command.CommandText = String.Format("UPDATE files SET size='{0}', checksum='{1}' WHERE path='{2}'"
+          , thisFile.Size, thisFile.Checksum, path);
       } else {
         // if the entry does not exist, insert it instead of updating it
 
         DbCommand command_getParent = dbConnection.CreateCommand ();
         command_getParent.CommandText = "SELECT id FROM files WHERE path='"
-          + path.Substring(0, path.LastIndexOf('/')) + "'";
+          + path.Substring(0, path.LastIndexOf('/')+1) + "'";
 
         int parentId = Convert.ToInt32 (command_getParent.ExecuteScalar ());
 
         command.CommandText = String.Format("INSERT INTO files (parent, path, size, modtime, type, `user`, checksum) "
                                             + "VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}')",
-                                            parentId, path, thisFile.size, thisFile.modtime, thisFile.type, user.id, thisFile.checksum);
+                                            parentId, path, thisFile.Size, "-1", 
+                                            (char)thisFile.Type, user.id, thisFile.Checksum);
       }
 
       return (command.ExecuteNonQuery() == 1);
@@ -187,7 +234,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     public bool RemoveFile(ServerUser user, String filePath) {
 
       DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "DELETE FROM files WHERE path='"+ "/" + user.id + "/" +filePath +"'";
+      command.CommandText = "DELETE FROM files WHERE path='"+ user.id + filePath +"'";
 
       return (command.ExecuteNonQuery() == 1);
     }

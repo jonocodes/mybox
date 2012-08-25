@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">Mixed Platforms</Platform>
+    <ProductVersion>10.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{E44A01C4-A08B-44BC-B109-F835DD86F62A}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>tester</RootNamespace>
+    <AssemblyName>Tester</AssemblyName>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|Mixed Platforms' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|Mixed Platforms' ">
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Externalconsole>true</Externalconsole>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Mono.Data.SqliteClient">
+      <HintPath>..\lib\Mono.Data.SqliteClient.dll</HintPath>
+    </Reference>
+    <Reference Include="MySql.Data">
+      <HintPath>..\lib\MySql.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Data.Linq" />
+    <Reference Include="System.Core" />
+    <Reference Include="nunit.framework">
+      <HintPath>..\lib\nunit.framework.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Tester.cs" />
+    <Compile Include="SyncTest.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <ProjectReference Include="..\Client\Client.csproj">
+      <Project>{CDC75259-333D-4A8F-A681-3D1C89BFBBA4}</Project>
+      <Name>Client</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ClientSetup\ClientSetup.csproj">
+      <Project>{AA9BDC0E-CD76-430E-95D6-A049C7B5890F}</Project>
+      <Name>ClientSetup</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\mybox\mybox.csproj">
+      <Project>{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}</Project>
+      <Name>mybox</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Server\Server.csproj">
+      <Project>{036D7623-59EE-4218-9545-540D50A3D00D}</Project>
+      <Name>Server</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\ServerSetup\ServerSetup.csproj">
+      <Project>{70E5D32A-72A6-40A1-85A1-B64B070C28AF}</Project>
+      <Name>ServerSetup</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
