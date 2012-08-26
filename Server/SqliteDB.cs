@@ -40,7 +40,7 @@ namespace mybox
     private DbConnection dbConnection = null;
 
     private String baseDataDir = Common.UserHome + "/.mybox/serverData/";
-    private readonly String defaultConnectionString = "URI=file:server_index.db,version=3";
+    private readonly String defaultConnectionString = "URI=file:server.db,version=3";
 
     public SqliteDB() {
       defaultConnectionString = "URI=file:"+ baseDataDir +"server.db,version=3";
@@ -121,7 +121,16 @@ CREATE TABLE IF NOT EXISTS `users` (
       return (Common.Sha256Hash(pwordOrig) == pwordHashed);
     }
     
-    
+    /// <summary>
+    /// Recalculate and set checksums for all directories in the list of updated directories.
+    ///  Typically used after a sinc is finished.
+    /// </summary>
+    /// <param name='updatedDirectories'>
+    /// Updated directories.
+    /// </param>
+    /// <param name='userId'>
+    /// User identifier.
+    /// </param>
     public void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId) {
     
       DbCommand command = dbConnection.CreateCommand();
@@ -150,13 +159,11 @@ CREATE TABLE IF NOT EXISTS `users` (
 
         dirItems.Add(new KeyValuePair<int, MyFile>(int.Parse(reader["id"].ToString()), new MyFile(pathToChecksum,
           (FileType)Enum.Parse(typeof(FileType),(string)(reader["type"])),
-          0, long.Parse(reader["size"].ToString()), reader["checksum"].ToString())));
+          long.Parse(reader["size"].ToString()), reader["checksum"].ToString())));
       }
       
       reader.Close();
       
-      
-      // TODO: process all directories before all files
       
       foreach (KeyValuePair<int, MyFile> thisItem in dirItems) {
       
@@ -194,17 +201,30 @@ CREATE TABLE IF NOT EXISTS `users` (
     /// </summary>
     public void RebuildFilesTable() {
     
+      // remove all entries
       DbCommand command = dbConnection.CreateCommand();
       command.CommandText = "DELETE FROM files";
       command.ExecuteNonQuery();
       
+      // rebuild the table from filesystem entries one user directory at a time
       String[] children = Directory.GetDirectories(baseDataDir);
       foreach (string child in children)
-        scanDirectory(child, -1);
+        rebuildFilesTableDir(child, -1);
     }
     
-    
-    private KeyValuePair<long, string> scanDirectory(string absParentDir, int parentId) {
+    /// <summary>
+    /// Rebuilds the files table for this directory recursively.
+    /// </summary>
+    /// <returns>
+    /// The files table dir.
+    /// </returns>
+    /// <param name='absParentDir'>
+    /// Abs parent dir.
+    /// </param>
+    /// <param name='parentId'>
+    /// Parent identifier.
+    /// </param>
+    private KeyValuePair<long, string> rebuildFilesTableDir(string absParentDir, int parentId) {
 
       string relChildPath = absParentDir.Substring(baseDataDir.Length, absParentDir.Length-baseDataDir.Length);
 
@@ -223,7 +243,6 @@ CREATE TABLE IF NOT EXISTS `users` (
       command.CommandText = String.Format("SELECT id FROM files WHERE path='{0}'", relChildPath);
       parentId = Convert.ToInt32(command.ExecuteScalar());
 
-      
       long totalSize = 0;
       string toChecksum = string.Empty;
       
@@ -231,7 +250,7 @@ CREATE TABLE IF NOT EXISTS `users` (
       
       foreach (String absChildPath in children) {
       
-        KeyValuePair<long, string> dirResult = scanDirectory(absChildPath, parentId);
+        KeyValuePair<long, string> dirResult = rebuildFilesTableDir(absChildPath, parentId);
 
         string relChildDirPath = absChildPath.Substring(baseDataDir.Length, absChildPath.Length-baseDataDir.Length);
         string pathToChecksum = Regex.Replace(relChildDirPath, "^[0-9]+/?", "/");
@@ -278,131 +297,26 @@ CREATE TABLE IF NOT EXISTS `users` (
       return new KeyValuePair<long, string>(totalSize, cs);
     }
     
-    
-    /*
-    private KeyValuePair<long, string> scanDirectory(string absParentDir, int parentId) {
-
-      string relChildPath = absParentDir.Substring(baseDataDir.Length, absParentDir.Length-baseDataDir.Length);
-
-      Console.WriteLine("scanDirectory called on " + absParentDir + " " + relChildPath);
-                  
-      Match userMatch = Regex.Match(relChildPath, @"^[0-9]+");
-
-      if (userMatch.Success) {
-        DbCommand command = dbConnection.CreateCommand ();
-        command.CommandText = String.Format("INSERT INTO files (parent, path, size, type, user, checksum) "
-                                              + "VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')",
-                                              parentId, relChildPath, -1, FileType.DIR, 
-                                              userMatch.Value, "-1");
-        command.ExecuteNonQuery();
-        
-        command = dbConnection.CreateCommand();
-        command.CommandText = String.Format("SELECT id FROM files WHERE path='{0}'", relChildPath);
-        parentId = Convert.ToInt32(command.ExecuteScalar());
-      }
-      
-      
-      String[] children = Directory.GetFileSystemEntries(absParentDir);
-
-      long totalSize = 0;
-      string toChecksum = string.Empty;
-      
-      foreach (String child in children) {
-        if (Directory.Exists(child)) {
-          KeyValuePair<long, string> dirResult = scanDirectory(child, parentId);
-          totalSize += dirResult.Key;
-
-//          toChecksum += dirResult.Value;
-
-
-          String relChildDirPath = child.Substring(baseDataDir.Length, child.Length-baseDataDir.Length);
-
-          string pathToChecksum = Regex.Replace(relChildDirPath, "^[0-9]+/?", "/");
-
-          toChecksum += pathToChecksum + Common.Md5Hash(toChecksum) + FileType.DIR.ToString();
-
-          Console.WriteLine(" dir " + relChildDirPath + " toChecksum: "+ toChecksum);
-          
-        }
-      }
-      
-      
-      if (userMatch.Success) {
-      
-        KeyValuePair<long, string> filesResult = scanChildren(absParentDir, parentId);
-        totalSize += filesResult.Key;
-        toChecksum += filesResult.Value;
-      
-        Console.WriteLine("  for " + relChildPath + " toChecksum: " + toChecksum + " sum: " + totalSize);
-      
-        DbCommand command = dbConnection.CreateCommand();
-        command.CommandText = String.Format("UPDATE files SET size='{0}', checksum='{1}' WHERE id='{2}'",
-                                            totalSize, Common.Md5Hash(toChecksum), parentId );
-        command.ExecuteNonQuery();
-      }
-  
-      return new KeyValuePair<long, string>(totalSize, toChecksum);
-    }
-    
-    
-    private KeyValuePair<long, string> scanChildren(string absParentDir, int parentId) {
-      
-      Console.WriteLine("scanChildren called on " + absParentDir);
-      
-      String[] children = Directory.GetFiles(absParentDir);
-      
-      long totalSize = 0;
-      string toChecksum = string.Empty;
-
-      foreach (String absFilePath in children) {
-      
-        string relPath = absFilePath.Substring(baseDataDir.Length, absFilePath.Length-baseDataDir.Length);
-        
-        Match userMatch = Regex.Match(relPath, @"^[0-9]+");
-        
-        if (userMatch.Success) {
-
-          string pathToChecksum = Regex.Replace(relPath, "^[0-9]+/?", "/");
-
-          long fileSize = (new FileInfo(absFilePath)).Length;
-          string checksum = Common.FileChecksumToString(absFilePath);
-          
-          totalSize += fileSize;
-
-
-          toChecksum += pathToChecksum + checksum + FileType.FILE.ToString();
-          
-          Console.WriteLine("  scanChildren adding: " + relPath + checksum + FileType.FILE.ToString());
-          
-          DbCommand command = dbConnection.CreateCommand ();
-          command.CommandText = String.Format("INSERT INTO files (parent, path, size, type, user, checksum) "
-                                              + "VALUES('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')",
-                                              parentId, relPath, fileSize, FileType.FILE.ToString(), 
-                                              userMatch.Value, checksum);
-          command.ExecuteNonQuery();
-          
-        }
-      }
-
-      return new KeyValuePair<long, string>(totalSize, toChecksum);
-    }
-    */
-    
+    /// <summary>
+    ///  Gets the file list in a manner that is easy to serialize and send. 
+    /// </summary>
+    /// <returns>
+    ///  The file list. 
+    /// </returns>
+    /// <param name='user'>
+    ///  This account. 
+    /// </param>
+    /// <param name='path'>
+    /// Path.
+    /// </param>
     public List<List<string>> GetDirListSerializable(ServerUser user, String path) {
       List<List<string>> fileList = new List<List<string>>();
 
       String dbPath = path == "/" ? user.id : user.id + path;
-/*
-      if (path == "/")
-        path = "";
 
-      String dbPath = user.id + "/" + path;
-*/
       DbCommand command = dbConnection.CreateCommand ();
       command.CommandText = "SELECT id FROM files WHERE user='" + user.id + "' AND path = '"+ dbPath +"'";
-      //DbReader reader = command.ExecuteReader ();
-      //reader.Close();
-      
+
       int parent = Convert.ToInt32(command.ExecuteScalar());
       
       command = dbConnection.CreateCommand();
@@ -413,15 +327,11 @@ CREATE TABLE IF NOT EXISTS `users` (
         List<string> fileInfo = new List<string>();
 
         String thisPath = reader["path"].ToString();
-
-        fileInfo.Add(thisPath.Substring(user.id.ToString().Length, thisPath.Length-1));
-        
         FileType type = (FileType)Enum.Parse(typeof(FileType), (string)(reader["type"]));
-        
         char typeChar = (char)((FileType)Enum.Parse(typeof(FileType), (string)(reader["type"])));
         
+        fileInfo.Add(thisPath.Substring(user.id.ToString().Length, thisPath.Length-1));
         fileInfo.Add(typeChar.ToString());
-//        fileInfo.Add(reader["modtime"].ToString ());
         fileInfo.Add(reader["size"].ToString());
         fileInfo.Add(reader["checksum"].ToString());
 
@@ -432,7 +342,8 @@ CREATE TABLE IF NOT EXISTS `users` (
 
       return fileList;
     }
-    
+
+        
     public int UpdateFile(ServerUser user, MyFile thisFile) {
 
       int parentId = -1;

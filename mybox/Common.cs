@@ -55,15 +55,16 @@ namespace mybox {
     no = 17
   }
 
-  // only used on the client side database
-  public enum FileSyncStatus /*: char*/ {
-    UPTODATE ='u',
-    SENDTOSERVER ='s',  // means the local file was updated and needs to be uploaded
-    DELETEONSERVER='d'
-    //CREATEDIRONSERVER='c'
-  }
+//  // only used on the client side database
+//  public enum FileSyncStatus /*: char*/ {
+////    UPTODATE /*='u'*/,
+//    SENDTOSERVER /*='s'*/,  // means the local file was updated and needs to be uploaded
+//    DELETEONSERVER/*='d'*/,
+////    UPDATELOCALCHECKSUM,
+//    //CREATEDIRONSERVER='c'
+//  }
   
-  public enum FileType /*: char*/ {
+  public enum FileType {
     FILE ='f',
     DIR ='d'
     //LINK = 'l'
@@ -76,72 +77,77 @@ namespace mybox {
   
     //public static String baseDir = String.Empty;
     
-
     public String Path;
-		public long Modtime = 0;  // when the file data was last modified // TODO: change to int
-    public FileType Type = FileType.FILE; // d=directory, f=file, l=link (link not yet supported) // TODO: change to enum
-
+    public FileType Type = FileType.FILE;
     public long Size = 0;
     public String Checksum;
     
-    public FileSyncStatus SyncStatus = FileSyncStatus.UPTODATE;
-    public String PreviousChecksum;
-    
-
-    public MyFile(String path, FileType type, long modtime, long size,
-        String checksum, FileSyncStatus syncStatus = FileSyncStatus.UPTODATE) {
-        
+    public MyFile(String path, FileType type, long size, String checksum) {
       this.Path = path;
-      this.Modtime = modtime;
       this.Type = type;
       this.Size = size;
       this.Checksum = checksum;
-      
-      PreviousChecksum = checksum;
-      SyncStatus = syncStatus;
     }
-    
-    public MyFile(String baseDir, String relPath) {
-      this.Path = relPath;
-      
+  }
+  
+  public class ClientFile : MyFile {
+  
+    public int Modtime = 0;  // when the file data was last modified // TODO: change to int
+
+    public ClientFile(String path, FileType type, long size, String checksum, int modtime)
+      : base(path, type, size, checksum) {
+        
+      this.Modtime = modtime;
+    }
+  
+    public static ClientFile FromFileSystem(String baseDir, String relPath) {
+
       String absPath = baseDir + "/" + relPath;
       
       FileInfo fi = new FileInfo(absPath);
-      Modtime = Common.DateTimeToUnixTimestamp(fi.LastWriteTimeUtc);
+      int modtime = Common.DateTimeToUnixTimestamp(fi.LastWriteTimeUtc);
+      
+      FileType type;
+      long size=0;
       
       if (Directory.Exists(absPath)) {
-        Type = FileType.DIR;
+        type = FileType.DIR;
         
       } else {// bad check
-        Type = FileType.FILE;
-        Size = fi.Length;
+        type = FileType.FILE;
+        size = fi.Length;
       }
-      // checksum ?
+      
+      // set a bogus checksum. this will be set elsewhere
+      
+      return new ClientFile(relPath, type, size, "empty" /*Common.Md5Hash(String.Empty)*/, modtime);
     }
     
-    public FileSyncStatus UpdateFromFileSystem(String baseDir) {
-      // assume it is a file?
-      PreviousChecksum = Checksum;
-      
-      if (Type == FileType.FILE) {
-        Checksum = Common.FileChecksumToString(baseDir + Path);
-        long newsize = (new FileInfo(baseDir + Path)).Length;
-        
-        if (Checksum == PreviousChecksum && newsize == Size)
-          SyncStatus = FileSyncStatus.UPTODATE;
-        else {
-          Size = newsize;
-          SyncStatus = FileSyncStatus.SENDTOSERVER;
-        }
-      } else {
-        // TODO: not sure how to do this part?
-        Checksum = Common.Md5Hash(String.Empty);
-        Size = 0;
-        SyncStatus = FileSyncStatus.SENDTOSERVER;
-      }
-
-      return SyncStatus;
-    }
+//    
+//    public FileSyncStatus UpdateFromFileSystem(String baseDir) {
+//      // assume it is a file?
+//      //PreviousChecksum = Checksum;
+//      
+//      if (Type == FileType.FILE) {
+//        Checksum = Common.FileChecksumToString(baseDir + Path);
+//        long newsize = (new FileInfo(baseDir + Path)).Length;
+//        /*
+//        if (Checksum == PreviousChecksum && newsize == Size)
+//          SyncStatus = FileSyncStatus.UPTODATE;
+//        else {
+//          Size = newsize;
+//          SyncStatus = FileSyncStatus.SENDTOSERVER;
+//        }
+//        */
+//      } else {
+//        // TODO: not sure how to do this part?
+//        Checksum = Common.Md5Hash(String.Empty);
+//        Size = 0;
+//        //SyncStatus = FileSyncStatus.SENDTOSERVER;
+//      }
+//
+//      return SyncStatus;
+//    }
 
   }
 
@@ -206,7 +212,7 @@ namespace mybox {
     /// <param name='unixTimeStamp'>
     /// Unix time stamp.
     /// </param>
-    public static DateTime UnixTimeStampToDateTime( long unixTimeStamp ) {
+    public static DateTime UnixTimeStampToDateTime(int unixTimeStamp) {
       return epoch.AddSeconds(unixTimeStamp);
     }
 
@@ -219,8 +225,8 @@ namespace mybox {
     /// <param name='dateTime'>
     /// DateTime
     /// </param>
-    public static long DateTimeToUnixTimestamp(DateTime dateTime) {
-      return Convert.ToInt64(Math.Floor((dateTime - epoch).TotalSeconds));
+    public static int DateTimeToUnixTimestamp(DateTime dateTime) {
+      return Convert.ToInt32(Math.Floor((dateTime - epoch).TotalSeconds));
     }
 
     /// <summary>
@@ -228,7 +234,7 @@ namespace mybox {
     /// </summary>
     /// <param name="fullPath"></param>
     /// <returns></returns>
-    public static long GetModTime(String fullPath) {
+    public static int GetModTime(String fullPath) {
       return DateTimeToUnixTimestamp(File.GetLastWriteTimeUtc(fullPath));
     }
 
@@ -477,23 +483,11 @@ namespace mybox {
       socket.Receive(lengthBuffer, 2, 0);
       Int16 length = BitConverter.ToInt16(lengthBuffer, 0);
       
-      
-      //Console.WriteLine("getting string of length " + length);
-      
-      //if (length == 0) 
-      //  return string.Empty;
-
-      //Console.WriteLine("ReceiveString getting bytes " + length);
-
       // FIXME: This fails with memory error with large amounts of bytes
       byte[] dataBuffer = new byte[length]; // TODO: remove array memory allocation from this function
 
       // string
       socket.Receive(dataBuffer, length, 0);
-
-      //Console.WriteLine("outstring: " + System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length));
-
-      //Console.WriteLine("RecieveString got string " +System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length));
 
       return System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length);
     }
@@ -505,12 +499,7 @@ namespace mybox {
     /// <param name="socket"></param>
     /// <param name="baseDir">the base directory for which to append the relPath to</param>
     /// <returns></returns>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public static MyFile SendFile(String relPath, Socket socket, String baseDir) {
-
-      // TODO: change to MyFile input parameter
-
-      MyFile myFile = null;
+    public static void SendFile(String relPath, Socket socket, String baseDir) {
 
       try {
         String fullPath = baseDir + relPath;
@@ -518,23 +507,16 @@ namespace mybox {
         byte[] fileName = Encoding.UTF8.GetBytes(relPath); //file name
         byte[] fileNameLen = BitConverter.GetBytes((Int16)(fileName.Length)); //length of file name
         byte[] fileData = File.ReadAllBytes(fullPath); //file
+        // TODO: fileData is not indexed by a long so can it deal with large files?
         byte[] fileDataLen = BitConverter.GetBytes(fileData.Length); // file length
-        
-        // TODO: make sure "file length" matches actual file size
-        
-        long modtime = Common.GetModTime(fullPath); // TODO: make timestamps into int
-        byte[] timestamp = BitConverter.GetBytes(modtime); // assume long = int64 = 8 bytes
         
         // temporarially calc checksum here, though should be done higher up
         byte[] checksum = FileChecksumToBytes(fullPath);
-        String checksumString = BitConverter.ToString(checksum).Replace("-", String.Empty).ToLower();
 
-        Console.WriteLine("Sending file " + relPath + " " + modtime);
+        Console.WriteLine("Sending file " + relPath);
 
         socket.Send(fileNameLen);//2
         socket.Send(fileName);
-        
-        socket.Send(timestamp);//8
         
         socket.Send(checksum);//16 bytes, or 32 characters?
         socket.Send(fileDataLen);//4, TODO: set this to 8 bits for files larger then 4GB ?
@@ -542,13 +524,11 @@ namespace mybox {
         
         // TODO: ask server if it sucessfully recieved the checksumed file before returning it here
         
-        myFile = new MyFile(relPath, FileType.FILE, modtime, fileData.Length, checksumString);
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
       }
 
-      return myFile;
     }
 
 
@@ -565,7 +545,7 @@ namespace mybox {
       MyFile myFile = null;
 
       try {
-        // receive order: name length, name, timestamp, checksum, data length, data
+        // receive order: name length, name, checksum, data length, data
         
         socket.Receive(buffer, 2, 0);
         Int16 nameLength = BitConverter.ToInt16(buffer, 0);
@@ -573,11 +553,6 @@ namespace mybox {
         socket.Receive(buffer, nameLength, 0);
         String relPath = System.Text.Encoding.UTF8.GetString(buffer, 0, nameLength);
 
-        // timestamp
-        socket.Receive(buffer, 8, 0); // TODO: make timestamps into int
-        Int64 timeStampUnix = BitConverter.ToInt64(buffer, 0);
-        DateTime timestamp = UnixTimeStampToDateTime(timeStampUnix);
-        
         // checksum
         socket.Receive(buffer, 16, 0);
         String checksumString = BitConverter.ToString(buffer, 0, 16).Replace("-", String.Empty).ToLower();
@@ -586,7 +561,7 @@ namespace mybox {
           DateTimeToUnixTimestamp(DateTime.Now).ToString() + _random.Next(0, 26).ToString() + _random.Next(0, 26).ToString();
 
         Console.WriteLine("Receiving file: " + relPath);
-        Console.WriteLine("  timestmp:" + timeStampUnix + " checksum: " + checksumString);
+        Console.WriteLine("  checksum: " + checksumString);
         Console.WriteLine("  temp: " + tempLocation);
         
         // data
@@ -626,10 +601,10 @@ namespace mybox {
           }
           
           File.Move(tempLocation, finalLocation);
-          File.SetLastWriteTimeUtc(finalLocation, timestamp);
+          //File.SetLastWriteTimeUtc(finalLocation, timestamp);
           Console.WriteLine("  file sucessfully saved to: " + finalLocation);
 
-          myFile = new MyFile(relPath, FileType.FILE, timeStampUnix, fileLength, checksumString);
+          myFile = new MyFile(relPath, FileType.FILE, fileLength, checksumString);
         }
         else
           throw new Exception("Received file checksum did not match");

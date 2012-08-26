@@ -216,7 +216,7 @@ namespace mybox {
           
           if (Common.CreateLocalDirectory(dataDir + relPath))
             updatedDirectories.Add(server.serverDB.UpdateFile(User,
-              new MyFile(relPath, FileType.DIR, 0, 0, Common.Md5Hash(string.Empty))));
+              new MyFile(relPath, FileType.DIR, 0, Common.Md5Hash(string.Empty))));
 
           //server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;

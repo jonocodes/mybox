@@ -51,11 +51,11 @@ namespace mybox {
     // The following members are stored prepared statements to speed up queries
 
     private DbParameter paramPath = new SqliteParameter("path", DbType.String); // should begin with a '/'
-    private DbParameter paramType = new SqliteParameter("type", DbType.String); // really just a single char
+    private DbParameter paramType = new SqliteParameter("type", DbType.String);
     private DbParameter paramModtime = new SqliteParameter("modtime", DbType.Int64);
     private DbParameter paramChecksum = new SqliteParameter("checksum", DbType.String);
     private DbParameter paramSize = new SqliteParameter("size", DbType.Int64);
-    private DbParameter paramStatus = new SqliteParameter("status", DbType.String); // TODO: set to byte?
+//    private DbParameter paramStatus = new SqliteParameter("status", DbType.String);
     
     private DbCommand commandInsertOrReplace = null;
     private DbCommand commandInsertOrIgnore = null;
@@ -131,15 +131,13 @@ namespace mybox {
         command.CommandText = 
 @"CREATE TABLE IF NOT EXISTS files (
   path text primary key,
-  type varchar(1),
+  type varchar(6),
   modtime bigint,
   size bigint,
-  checksum text,
-  status varchar(1)
+  checksum text
 )";
 
         // TODO: add key and parent to speed up directory treversal
-        // TODO: move 'status' field out of database and into a memory hash instead
 
         command.ExecuteNonQuery();
       }
@@ -162,8 +160,8 @@ namespace mybox {
       commandInsertOrReplace.Parameters.Add(paramModtime);
       commandInsertOrReplace.Parameters.Add(paramSize);
       commandInsertOrReplace.Parameters.Add(paramChecksum);
-      commandInsertOrReplace.Parameters.Add(paramStatus);
-      commandInsertOrReplace.CommandText = "insert or replace into files values(?,?,?,?,?,?)";
+//      commandInsertOrReplace.Parameters.Add(paramStatus);
+      commandInsertOrReplace.CommandText = "insert or replace into files values(?,?,?,?,?)";
 
       commandInsertOrIgnore = dbConnection.CreateCommand();
       commandInsertOrIgnore.Parameters.Add(paramPath);
@@ -171,13 +169,12 @@ namespace mybox {
       commandInsertOrIgnore.Parameters.Add(paramModtime);
       commandInsertOrIgnore.Parameters.Add(paramSize);
       commandInsertOrIgnore.Parameters.Add(paramChecksum);
-      commandInsertOrIgnore.Parameters.Add(paramStatus);
-      commandInsertOrIgnore.CommandText = "insert or ignore into files values(?,?,?,?,?,?)";
+//      commandInsertOrIgnore.Parameters.Add(paramStatus);
+      commandInsertOrIgnore.CommandText = "insert or ignore into files values(?,?,?,?,?)";
 
       commandDeleteFile = dbConnection.CreateCommand();
       commandDeleteFile.Parameters.Add(paramPath);
       commandDeleteFile.CommandText = "delete from files where path = ?";
-
 
       // TODO: put this somewhere better
       paramPath.Value = "/";
@@ -185,11 +182,10 @@ namespace mybox {
       paramModtime.Value = 0;      
       paramSize.Value = 0;
       paramChecksum.Value = Common.Md5Hash(String.Empty);
-      paramStatus.Value = FileSyncStatus.UPTODATE.ToString();
       commandInsertOrIgnore.ExecuteNonQuery();
 
     }
-
+/*
     /// <summary>
     /// Checks to make sure all files are uptodate. Used for development testing.
     /// </summary>
@@ -201,16 +197,16 @@ namespace mybox {
       command.CommandText = "SELECT COUNT(path) FROM files WHERE status != '"+ FileSyncStatus.UPTODATE +"'";
       return Convert.ToInt32(command.ExecuteScalar());
     }
-
+*/
     /// <summary>
     /// Non recursive directory index getter
     /// </summary>
     /// <returns></returns>
-    public List<MyFile> GetDirList(String parentPath) {
+    public List<ClientFile> GetDirList(String parentPath) {
 
       // TODO: perhaps keep a running copy in memory so we dont have to fetch from DB?
 
-      List<MyFile> files = new List<MyFile>();
+      List<ClientFile> files = new List<ClientFile>();
 
       DbCommand clearCommand = dbConnection.CreateCommand();
       // "SELECT * FROM files WHERE REGEXP '^"+ parentPath +"[^/]+$'"; // cant to reged in native sqlite
@@ -230,15 +226,70 @@ namespace mybox {
         
         if (localPath.Length > 0 & !localPath.Contains("/")) {
         
-          MyFile myFile = new MyFile(path, (FileType)Enum.Parse(typeof(FileType), reader["type"].ToString(), true),
-                     long.Parse(reader["modtime"].ToString()), long.Parse(reader["size"].ToString()),
+          ClientFile ClientFile = new ClientFile(path,
+                     (FileType)Enum.Parse(typeof(FileType),reader["type"].ToString(), true),
+                     long.Parse(reader["size"].ToString()),
                      reader["checksum"].ToString(),
-                     (FileSyncStatus)Enum.Parse(typeof(FileSyncStatus), reader["status"].ToString(), true) );
+                     int.Parse(reader["modtime"].ToString()) );
         
-          files.Add(myFile);
+          files.Add(ClientFile);
         }
       }
       return files;
+    }
+
+
+    public ClientFile GetDirUpdateValues(String relPath, int dirTimestamp,
+      Dictionary<string, ClientFile> mapOfFiles,
+      Dictionary<string, ClientFile> toUpdate,
+      Dictionary<string, ClientFile> toDelete) {
+    
+      DbCommand clearCommand = dbConnection.CreateCommand();
+      // make sure Directories come before files
+      clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ relPath +"_%' ORDER BY type, path";
+      DbReader reader = clearCommand.ExecuteReader();
+      
+      String str = string.Empty;
+      long size = 0;
+      
+      while (reader.Read()) { 
+
+        String childPath = reader["path"].ToString();
+        String childPathWithoutParent = childPath.Remove(0, relPath.Length);
+
+        if (mapOfFiles.ContainsKey(childPath))
+          mapOfFiles.Remove(childPath);
+                        
+        if (toDelete.ContainsKey(childPath))
+          continue;
+        
+        if (childPathWithoutParent.LastIndexOf('/') <= 0) {
+        
+          if (toUpdate.ContainsKey(childPath)) {
+            str += childPath + toUpdate[childPath].Checksum + reader["type"].ToString();
+            size += toUpdate[childPath].Size;          
+          }
+          else {
+            str += childPath + reader["checksum"].ToString() + reader["type"].ToString();
+            size += long.Parse(reader["size"].ToString());
+          }
+        }
+      }
+      
+      reader.Close();
+      
+      // add the files that were added to the filesystem and were not in the DB
+      foreach (KeyValuePair<string, ClientFile> kvp in mapOfFiles) {
+        ClientFile update = toUpdate[kvp.Key];
+        
+        str += kvp.Value.Path + update.Checksum + kvp.Value.Type.ToString();
+        size += update.Size;
+      }
+      
+      Console.WriteLine("  checksumming dir string: " + str);
+      Console.WriteLine("  checksum result: " + Common.Md5Hash(str));
+      
+      return new ClientFile(relPath, FileType.DIR, size, Common.Md5Hash(str), dirTimestamp);
     }
 
     /// <summary>
@@ -246,48 +297,16 @@ namespace mybox {
     /// </summary>
     /// <param name="file"></param>
     /// <returns></returns>
-    public bool Update(MyFile file) {
+    public void Update(ClientFile file /*, Dictionary<string, FileSyncStatus> fileStatus*/ /*FileSyncStatus fileStatus*/) {
 
-      Console.WriteLine("FileIndex Update " + file.Path + "  " + file.SyncStatus.ToString());
-
-      if (file.Type == FileType.DIR && file.SyncStatus != FileSyncStatus.DELETEONSERVER ) {
-        Console.WriteLine("Updating local index for directory " + file.Path);
-        
-        DbCommand clearCommand = dbConnection.CreateCommand();
-        // make sure Directories come before files
-        clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ file.Path +"_%' AND status != '"+ FileSyncStatus.DELETEONSERVER +"' ORDER BY type, path";
-        DbReader reader = clearCommand.ExecuteReader();
-        
-        String str = string.Empty;
-        file.Size = 0;
-        
-        while (reader.Read()) { 
-
-          String childPath = reader["path"].ToString().Remove(0, file.Path.Length);
-        
-          if (childPath.LastIndexOf('/') <= 0) {
-            str += reader["path"].ToString() + reader["checksum"].ToString() + reader["type"].ToString();
-            file.Size += long.Parse(reader["size"].ToString());
-          }
-        }
-
-        Console.WriteLine("  checksumming dir string: " + str);
-
-        file.Checksum = Common.Md5Hash(str);
-        file.SyncStatus = FileSyncStatus.SENDTOSERVER;
-        
-        reader.Close();
-      }
+      Console.WriteLine("FileIndex Update " + file.Path);
 
       paramPath.Value = file.Path;
       paramType.Value = file.Type.ToString(); // to ensure it is stored as a char/string instead of a numeric value
       paramModtime.Value = file.Modtime;
       paramSize.Value = file.Size;
       paramChecksum.Value = file.Checksum;
-      paramStatus.Value = file.SyncStatus.ToString(); // TODO: does this convert the enum key or value?
       commandInsertOrReplace.ExecuteNonQuery();
-
-      return true;
     }
 
     /// <summary>
@@ -295,37 +314,37 @@ namespace mybox {
     /// </summary>
     /// <param name="fileName"></param>
     /// <returns>true if 1 row was affected in the database</returns>
-    public bool Remove(MyFile file) {
+    public bool Remove(String filePath, FileType type) {
     
-      Console.WriteLine("FileIndex Remove " + file);
+      Console.WriteLine("FileIndex Remove " + filePath);
       
-      if (file.Type == FileType.DIR) {
+      if (type == FileType.DIR) {
         // remove all children of that directory
         
         DbCommand cmd = dbConnection.CreateCommand();
-        cmd.CommandText = "SELECT * FROM files WHERE path LIKE '"+ file.Path +"_%' ORDER BY type, path";
+        cmd.CommandText = "SELECT * FROM files WHERE path LIKE '"+ filePath +"_%' ORDER BY type, path";
         DbReader reader = cmd.ExecuteReader();
         
         while (reader.Read()) { 
 
-          String thisPath = reader["path"].ToString();
-          String childPath = thisPath.Remove(0, file.Path.Length);
+          String childPath = reader["path"].ToString();
+          String localPath = childPath.Remove(0, filePath.Length);
         
-          if (childPath.LastIndexOf('/') <= 0) {
+          if (localPath.LastIndexOf('/') <= 0) {
           
-            FileType type = (FileType)Enum.Parse(typeof(FileType), reader["type"].ToString(), true);
+            FileType childType = (FileType)Enum.Parse(typeof(FileType), reader["type"].ToString(), true);
             
-            if (type == FileType.DIR) 
-              Remove(new MyFile(thisPath, type, 0, 0, "0", FileSyncStatus.DELETEONSERVER));
+            if (childType == FileType.DIR) 
+              Remove(childPath, FileType.DIR);
             else {
-              paramPath.Value = thisPath;
+              paramPath.Value = childPath;
               commandDeleteFile.ExecuteNonQuery();
             }
           }
         }
       }
     
-      paramPath.Value = file.Path;
+      paramPath.Value = filePath;
       return (commandDeleteFile.ExecuteNonQuery() == 1);
     }
 
