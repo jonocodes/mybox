@@ -100,6 +100,11 @@ namespace mybox
       }
                   */
       bool changed = false;
+      string relPath = getRelativePath(absDirPath);
+      
+      Dictionary<String, ClientFile> childrenFiles = toMap(getFileList(relPath));
+      Dictionary<String, ClientFile> childrenIndex = toMap(fileIndex.GetDirList(relPath));
+      
       foreach (String child in children) {
         if (Directory.Exists(child)) {
           if (scanDirectory(child)) {
@@ -107,43 +112,36 @@ namespace mybox
           }
         }
       }
-      if (scanChildren(absDirPath)) {
+      if (scanChildren(absDirPath, childrenFiles, childrenIndex)) {
+        changed = true;
+      }
+      
+      if (!childrenIndex.ContainsKey(relPath)) {
         changed = true;
       }
   
       if (changed) {
-        writeMessage("changed records found, refresh directory record: " + absDirPath);
-        string relPath = getRelativePath(absDirPath);
-        
-//        fileStatus.Add(relPath, FileSyncStatus.SENDTOSERVER);
+        writeMessage("changed records found, new directory record: " + absDirPath);
         
         int dirTimestamp = Common.DateTimeToUnixTimestamp(new FileInfo(absDirPath).LastWriteTime);
         
-        Dictionary<String, ClientFile> mapOfFiles = toMap(getFileList(relPath));
-        toUpdate.Add(relPath, fileIndex.GetDirUpdateValues(relPath, dirTimestamp, mapOfFiles, toUpdate, toDelete));
-        
-        // TODO: updateInfo.Add(relPath, new KeyValuePair<string, long>(
+        toUpdate.Add(relPath, fileIndex.GetUpdatedDirectory(relPath, dirTimestamp, childrenFiles, toUpdate, toDelete));
       }
   
       return changed;
     }
     
-    private bool scanChildren(String absParent) {
+    private bool scanChildren(String absParent, Dictionary<String, ClientFile> childrenFiles,
+      Dictionary<String, ClientFile> childrenIndex) {
       
       writeMessage("scanChildren: " + absParent);
-      
-      String relParent = getRelativePath(absParent);
-      
-      Dictionary<String, ClientFile> mapOfFiles = toMap(getFileList(relParent));
 
       bool changed = false;
 
-      Dictionary<String, ClientFile> records = toMap(fileIndex.GetDirList(relParent));
-
       // remove any that no longer exist
-      foreach (KeyValuePair<String, ClientFile> pair in records) {
+      foreach (KeyValuePair<String, ClientFile> pair in childrenIndex) {
         ClientFile r = pair.Value;
-        if (!mapOfFiles.ContainsKey(r.Path)) {
+        if (!childrenFiles.ContainsKey(r.Path)) {
           changed = true;
           writeMessage("detected change, file removed: " + r.Path);
           
@@ -153,7 +151,7 @@ namespace mybox
         }
       }
 
-      foreach (KeyValuePair<String, ClientFile> pair in mapOfFiles) {
+      foreach (KeyValuePair<String, ClientFile> pair in childrenFiles) {
         
         ClientFile f = pair.Value;
         
@@ -161,7 +159,7 @@ namespace mybox
         
           string absFilePath = absDataDir + f.Path;
             
-          if (!records.ContainsKey(f.Path)) {
+          if (!childrenIndex.ContainsKey(f.Path)) {
           
             writeMessage("detected change, new file: " + f.Path);
             
@@ -170,9 +168,8 @@ namespace mybox
             f.Checksum = Common.FileChecksumToString(absFilePath);;
             f.Size = (new FileInfo(absFilePath)).Length;
             toUpdate.Add(f.Path, f);
-            
           }
-          else if (f.Modtime != records[f.Path].Modtime) {
+          else if (f.Modtime != childrenIndex[f.Path].Modtime) {
             writeMessage("detected change, file modified dates differ: " + f.Path);
             
             changed = true;
@@ -184,33 +181,6 @@ namespace mybox
         } else { // directory
         
         
-        
-        
-          // TODO: is this correct? not in original algorithm
-          
-          if (!records.ContainsKey(f.Path)) {
-          
-            writeMessage("detected change, new directory: " + f.Path);
-            
-            changed = true;
-            
-//            fileIndex.Update(f, syncStatus); // will update checksum
-
-            //ClientFile newDir = fileIndex.GetDirUpdateValues(f.Path, f.Modtime, fileStatus, mapOfFiles, toUpdate);
-
-            toUpdate.Add(f.Path, f);
-      
-      
-            // will this change propogate checksums up the chain?
-            
-
-          }
-          // handle 'else' case?
-          
-          
-          
-          
-          
         
         }
       }
@@ -391,7 +361,7 @@ namespace mybox
       if (toUpdate.ContainsKey(localFile.Path)) {
         onLocalChange(localFile);  // if resource is a directory this should create it            
         if( localFile.Type == FileType.DIR ) {  // continue scan
-          walk(localFile.Path, new List<ClientFile>(), fileIndex.GetDirList(localFile.Path));
+          walk(localFile.Path, new List<ClientFile>(), getFileList(localFile.Path) /*fileIndex.GetDirList(localFile.Path)*/);
         }
       }
       else {
@@ -452,7 +422,7 @@ namespace mybox
         ClientFile clientFile = new ClientFile(newFile.Path, newFile.Type, newFile.Size,
           newFile.Checksum, Common.GetModTime(absDataDir + newFile.Path));
       
-        fileIndex.Update(clientFile/*, fileStatus*/);
+        fileIndex.Update(clientFile);
       }
     }
 

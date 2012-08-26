@@ -88,6 +88,10 @@ namespace mybox {
       this.Size = size;
       this.Checksum = checksum;
     }
+    
+    public override string ToString() {
+      return this.Path;
+    }
   }
   
   public class ClientFile : MyFile {
@@ -112,7 +116,6 @@ namespace mybox {
       
       if (Directory.Exists(absPath)) {
         type = FileType.DIR;
-        
       } else {// bad check
         type = FileType.FILE;
         size = fi.Length;
@@ -122,32 +125,6 @@ namespace mybox {
       
       return new ClientFile(relPath, type, size, "empty" /*Common.Md5Hash(String.Empty)*/, modtime);
     }
-    
-//    
-//    public FileSyncStatus UpdateFromFileSystem(String baseDir) {
-//      // assume it is a file?
-//      //PreviousChecksum = Checksum;
-//      
-//      if (Type == FileType.FILE) {
-//        Checksum = Common.FileChecksumToString(baseDir + Path);
-//        long newsize = (new FileInfo(baseDir + Path)).Length;
-//        /*
-//        if (Checksum == PreviousChecksum && newsize == Size)
-//          SyncStatus = FileSyncStatus.UPTODATE;
-//        else {
-//          Size = newsize;
-//          SyncStatus = FileSyncStatus.SENDTOSERVER;
-//        }
-//        */
-//      } else {
-//        // TODO: not sure how to do this part?
-//        Checksum = Common.Md5Hash(String.Empty);
-//        Size = 0;
-//        //SyncStatus = FileSyncStatus.SENDTOSERVER;
-//      }
-//
-//      return SyncStatus;
-//    }
 
   }
 

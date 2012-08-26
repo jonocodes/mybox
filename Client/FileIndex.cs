@@ -26,6 +26,9 @@ using System.IO;
 using System.Data;
 using Mono.Data.SqliteClient;
 
+//using System.Data.Linq;
+using System.Linq;
+
 using DbConnection = System.Data.IDbConnection;
 using DbReader = System.Data.IDataReader;
 using DbCommand = System.Data.IDbCommand;
@@ -239,51 +242,85 @@ namespace mybox {
     }
 
 
-    public ClientFile GetDirUpdateValues(String relPath, int dirTimestamp,
-      Dictionary<string, ClientFile> mapOfFiles,
+    /// <summary>
+    /// Gets an object that represents the new checksum and size for an updated directory.
+    /// </summary>
+    /// <returns>
+    /// The updated directory object
+    /// </returns>
+    /// <param name='relPath'>
+    /// Rel path.
+    /// </param>
+    /// <param name='dirTimestamp'>
+    /// Original timestamp of the directory
+    /// </param>
+    /// <param name='mapOfFiles'>
+    /// Map of files.
+    /// </param>
+    /// <param name='toUpdate'>
+    /// To update.
+    /// </param>
+    /// <param name='toDelete'>
+    /// To delete.
+    /// </param>
+    public ClientFile GetUpdatedDirectory(String relPath, int dirTimestamp,
+      Dictionary<string, ClientFile> childrenFiles,
       Dictionary<string, ClientFile> toUpdate,
       Dictionary<string, ClientFile> toDelete) {
     
       DbCommand clearCommand = dbConnection.CreateCommand();
-      // make sure Directories come before files
-      clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ relPath +"_%' ORDER BY type, path";
+      
+      clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ relPath +"_%'";
       DbReader reader = clearCommand.ExecuteReader();
       
       String str = string.Empty;
       long size = 0;
       
+      List<MyFile> toSum = new List<MyFile>();
+      
+      // collect all the items in the index
       while (reader.Read()) { 
 
         String childPath = reader["path"].ToString();
         String childPathWithoutParent = childPath.Remove(0, relPath.Length);
 
-        if (mapOfFiles.ContainsKey(childPath))
-          mapOfFiles.Remove(childPath);
-                        
+        if (childrenFiles.ContainsKey(childPath))
+          childrenFiles.Remove(childPath);
+
+        // skip if marked for deletion
         if (toDelete.ContainsKey(childPath))
           continue;
         
         if (childPathWithoutParent.LastIndexOf('/') <= 0) {
         
+          // if there is a pending update, use that value
           if (toUpdate.ContainsKey(childPath)) {
-            str += childPath + toUpdate[childPath].Checksum + reader["type"].ToString();
-            size += toUpdate[childPath].Size;          
+            toSum.Add(new MyFile(childPath,
+              (FileType)Enum.Parse(typeof(FileType), reader["type"].ToString(), true),
+              toUpdate[childPath].Size, toUpdate[childPath].Checksum));
           }
+          // if there is no update, use the values from the index
           else {
-            str += childPath + reader["checksum"].ToString() + reader["type"].ToString();
-            size += long.Parse(reader["size"].ToString());
+            toSum.Add(new MyFile(childPath,
+              (FileType)Enum.Parse(typeof(FileType), reader["type"].ToString(), true),
+              long.Parse(reader["size"].ToString()), reader["checksum"].ToString()));
           }
         }
       }
       
       reader.Close();
       
-      // add the files that were added to the filesystem and were not in the DB
-      foreach (KeyValuePair<string, ClientFile> kvp in mapOfFiles) {
-        ClientFile update = toUpdate[kvp.Key];
-        
-        str += kvp.Value.Path + update.Checksum + kvp.Value.Type.ToString();
-        size += update.Size;
+      // add the files that were added to the filesystem and were not in the index
+      foreach (KeyValuePair<string, ClientFile> kvp in childrenFiles) {
+        toSum.Add(toUpdate[kvp.Key]);
+      }
+      
+      // calculate the checksum directories first, and ordered alphabetically
+      var orderedList = toSum.OrderBy(x => x.Type != FileType.DIR).ThenBy(x => x.Path);
+      
+      foreach (var fileItem in orderedList) {
+        str += fileItem.Path + fileItem.Checksum + fileItem.Type.ToString();
+        size += fileItem.Size;
       }
       
       Console.WriteLine("  checksumming dir string: " + str);
