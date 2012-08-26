@@ -327,7 +327,6 @@ CREATE TABLE IF NOT EXISTS `users` (
         List<string> fileInfo = new List<string>();
 
         String thisPath = reader["path"].ToString();
-        FileType type = (FileType)Enum.Parse(typeof(FileType), (string)(reader["type"]));
         char typeChar = (char)((FileType)Enum.Parse(typeof(FileType), (string)(reader["type"])));
         
         fileInfo.Add(thisPath.Substring(user.id.ToString().Length, thisPath.Length-1));

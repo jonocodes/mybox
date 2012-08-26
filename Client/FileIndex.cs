@@ -188,19 +188,22 @@ namespace mybox {
       commandInsertOrIgnore.ExecuteNonQuery();
 
     }
-/*
-    /// <summary>
-    /// Checks to make sure all files are uptodate. Used for development testing.
-    /// </summary>
-    /// <returns>
-    /// 0 if everything is up to date - as it should be. Else return the number of files which are not.
-    /// </returns>
-    public int CheckUptodate() {
-      DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "SELECT COUNT(path) FROM files WHERE status != '"+ FileSyncStatus.UPTODATE +"'";
-      return Convert.ToInt32(command.ExecuteScalar());
+
+    public ClientFile GetFile(String path) {
+      DbCommand cmd = dbConnection.CreateCommand();
+      cmd.CommandText = String.Format("SELECT * FROM files WHERE path='{0}'", path);
+      DbReader reader = cmd.ExecuteReader();
+
+      if (reader.Read()) {
+        ClientFile ClientFile = new ClientFile(path,
+                   (FileType)Enum.Parse(typeof(FileType),reader["type"].ToString(), true),
+                   long.Parse(reader["size"].ToString()),
+                   reader["checksum"].ToString(),
+                   int.Parse(reader["modtime"].ToString()) );
+      }
+      return null;
     }
-*/
+
     /// <summary>
     /// Non recursive directory index getter
     /// </summary>

@@ -205,18 +205,26 @@ namespace mybox {
         case Signal.deleteOnServer:
           relPath = Common.ReceiveString(socket);
 
-          if (Common.DeleteLocal(dataDir + relPath))
+          if (Common.DeleteLocal(dataDir + relPath)) {
             updatedDirectories.Add(server.serverDB.RemoveFile(User, relPath)); // TODO: check return value, or exception
-
+            socket.Send(Common.SignalToBuffer(Signal.sucess));
+          }
+          else 
+            socket.Send(Common.SignalToBuffer(Signal.failure));
           //server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;
 
         case Signal.createDirectoryOnServer:
           relPath = Common.ReceiveString(socket);
           
-          if (Common.CreateLocalDirectory(dataDir + relPath))
+          if (Common.CreateLocalDirectory(dataDir + relPath)) {
             updatedDirectories.Add(server.serverDB.UpdateFile(User,
               new MyFile(relPath, FileType.DIR, 0, Common.Md5Hash(string.Empty))));
+
+            socket.Send(Common.SignalToBuffer(Signal.sucess));
+          }
+          else 
+            socket.Send(Common.SignalToBuffer(Signal.failure));
 
           //server.SpanCatchupOperation(handle, User.id, signal, relPath);
           break;

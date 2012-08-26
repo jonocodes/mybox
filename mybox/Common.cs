@@ -52,7 +52,9 @@ namespace mybox {
     createDirectoryOnClient = 14,
     c2s = 15,
     yes = 16,
-    no = 17
+    no = 17,
+    sucess = 18,
+    failure = 19
   }
 
 //  // only used on the client side database
@@ -469,6 +471,17 @@ namespace mybox {
       return System.Text.Encoding.UTF8.GetString(dataBuffer, 0, length);
     }
 
+    public static bool CheckSuccess(Socket socket) {
+      byte[] statusBuffer = new byte[1];
+      socket.Receive(statusBuffer);
+      
+      if (Common.BufferToSignal(statusBuffer) == Signal.sucess)
+        return true;
+
+      return false;
+    }
+
+
     /// <summary>
     /// Send a local file accross a socket
     /// </summary>
@@ -476,7 +489,7 @@ namespace mybox {
     /// <param name="socket"></param>
     /// <param name="baseDir">the base directory for which to append the relPath to</param>
     /// <returns></returns>
-    public static void SendFile(String relPath, Socket socket, String baseDir) {
+    public static bool SendFile(String relPath, Socket socket, String baseDir) {
 
       try {
         String fullPath = baseDir + relPath;
@@ -498,14 +511,23 @@ namespace mybox {
         socket.Send(checksum);//16 bytes, or 32 characters?
         socket.Send(fileDataLen);//4, TODO: set this to 8 bits for files larger then 4GB ?
         socket.Send(fileData);
+
+
+        /*
+        byte[] statusBuffer = new byte[1];
+        socket.Receive(statusBuffer);
         
-        // TODO: ask server if it sucessfully recieved the checksumed file before returning it here
-        
+        if (Common.BufferToSignal(statusBuffer) == Signal.sucess)
+          return true;
+          */
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
       }
+      
+      return CheckSuccess(socket);
 
+//      return false;
     }
 
 
@@ -581,6 +603,8 @@ namespace mybox {
           //File.SetLastWriteTimeUtc(finalLocation, timestamp);
           Console.WriteLine("  file sucessfully saved to: " + finalLocation);
 
+          socket.Send(Common.SignalToBuffer(Signal.sucess));
+
           myFile = new MyFile(relPath, FileType.FILE, fileLength, checksumString);
         }
         else
@@ -588,6 +612,7 @@ namespace mybox {
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
+        socket.Send(Common.SignalToBuffer(Signal.failure));
       }
 
       return myFile;

@@ -18,13 +18,10 @@ namespace mybox
     private String absDataDir = null;
     private FileIndex fileIndex = null;
     
-    
     private List<ClientFile> localDeletes = new List<ClientFile>();
-    
     private Dictionary<string, ClientFile> toDelete = new Dictionary<string, ClientFile>();
     private Dictionary<string, ClientFile> toUpdate = new Dictionary<string, ClientFile>();
 
-    
     protected virtual void OnFinished(EventArgs e) {
       if (Finished != null)
         Finished(this, e);
@@ -62,20 +59,30 @@ namespace mybox
 
       String[] children = Directory.GetFileSystemEntries(absDataDir + relPath);
 
-      foreach (String absChildPath in children) 
-        result.Add(ClientFile.FromFileSystem(absDataDir, getRelativePath(absChildPath)));
-      
+      foreach (String absChildPath in children) {
+        
+        string relChildPath = absChildPath.Replace(absDataDir, string.Empty);
+
+        relChildPath = System.Text.RegularExpressions.Regex.Replace(relChildPath, @"[\\/]+", "/");
+          
+        FileInfo fi = new FileInfo(absChildPath);
+        int modtime = Common.DateTimeToUnixTimestamp(fi.LastWriteTimeUtc);
+        
+        FileType type;
+        long size = 0;
+        
+        if (Directory.Exists(absChildPath)) {
+          type = FileType.DIR;
+        } else {
+          type = FileType.FILE;
+          size = fi.Length;
+        }
+        
+        // set a bogus checksum. this will be set elsewhere
+        
+        result.Add(new ClientFile(relChildPath, type, size, "empty", modtime));
+      }
       return result;
-    }
-    
-
-    private String getRelativePath(String absPath) {
-
-      string rel = absPath.Replace(absDataDir, string.Empty);
-
-      rel = System.Text.RegularExpressions.Regex.Replace(rel, @"[\\/]+", "/");
-
-      return rel;
     }
     
     private Dictionary<String, ClientFile> toMap(List<ClientFile> fileList) {
@@ -88,57 +95,23 @@ namespace mybox
     }
     
 
-    private bool scanDirectory(String absDirPath) {
-    
-      writeMessage("scanDirectory: " + absDirPath);
+    private bool scanDirectory(String relPath) {
       
-      String[] children = Directory.GetFileSystemEntries(absDirPath);
-/*
-      if (children.Length == 0) {
-        writeMessage("No children of: " + absDirPath);
-        return false;
-      }
-                  */
+      writeMessage("scanDirectory: " + relPath);
+      
       bool changed = false;
-      string relPath = getRelativePath(absDirPath);
       
       Dictionary<String, ClientFile> childrenFiles = toMap(getFileList(relPath));
       Dictionary<String, ClientFile> childrenIndex = toMap(fileIndex.GetDirList(relPath));
       
-      foreach (String child in children) {
-        if (Directory.Exists(child)) {
-          if (scanDirectory(child)) {
-            changed = true;
-          }
-        }
-      }
-      if (scanChildren(absDirPath, childrenFiles, childrenIndex)) {
-        changed = true;
+      // recurse depth first into directories before processing files
+      foreach (KeyValuePair<String, ClientFile> kvp in childrenFiles) {
+        if (kvp.Value.Type == FileType.DIR)
+          changed = scanDirectory(kvp.Key);
       }
       
-      if (!childrenIndex.ContainsKey(relPath)) {
-        changed = true;
-      }
-  
-      if (changed) {
-        writeMessage("changed records found, new directory record: " + absDirPath);
-        
-        int dirTimestamp = Common.DateTimeToUnixTimestamp(new FileInfo(absDirPath).LastWriteTime);
-        
-        toUpdate.Add(relPath, fileIndex.GetUpdatedDirectory(relPath, dirTimestamp, childrenFiles, toUpdate, toDelete));
-      }
-  
-      return changed;
-    }
-    
-    private bool scanChildren(String absParent, Dictionary<String, ClientFile> childrenFiles,
-      Dictionary<String, ClientFile> childrenIndex) {
       
-      writeMessage("scanChildren: " + absParent);
-
-      bool changed = false;
-
-      // remove any that no longer exist
+      // remove files that no longer exist
       foreach (KeyValuePair<String, ClientFile> pair in childrenIndex) {
         ClientFile r = pair.Value;
         if (!childrenFiles.ContainsKey(r.Path)) {
@@ -151,40 +124,39 @@ namespace mybox
         }
       }
 
+      // mark files that need to be updated
       foreach (KeyValuePair<String, ClientFile> pair in childrenFiles) {
         
         ClientFile f = pair.Value;
         
-        if (f.Type == FileType.FILE) {
+        if (f.Type == FileType.FILE &&
+           (!childrenIndex.ContainsKey(f.Path) || f.Modtime != childrenIndex[f.Path].Modtime )) {
         
+          writeMessage("detected file update. either new or modified dates differ: " + f.Path);
+          
           string absFilePath = absDataDir + f.Path;
             
-          if (!childrenIndex.ContainsKey(f.Path)) {
+          f.Checksum = Common.FileChecksumToString(absFilePath);
+          f.Size = (new FileInfo(absFilePath)).Length;
+          toUpdate.Add(f.Path, f);
           
-            writeMessage("detected change, new file: " + f.Path);
-            
-            changed = true;
-            
-            f.Checksum = Common.FileChecksumToString(absFilePath);;
-            f.Size = (new FileInfo(absFilePath)).Length;
-            toUpdate.Add(f.Path, f);
-          }
-          else if (f.Modtime != childrenIndex[f.Path].Modtime) {
-            writeMessage("detected change, file modified dates differ: " + f.Path);
-            
-            changed = true;
-
-            f.Checksum = Common.FileChecksumToString(absFilePath);
-            f.Size = (new FileInfo(absFilePath)).Length;;
-            toUpdate.Add(f.Path, f);
-          }
-        } else { // directory
-        
-        
-        
+          changed = true;
         }
       }
-
+      
+      // if the local directory is new, then an update is in order
+      if (!childrenIndex.ContainsKey(relPath)) {
+        changed = true;
+      }
+  
+      if (changed) {
+        writeMessage("changed records found, new directory record: " + relPath);
+        
+        int dirTimestamp = Common.DateTimeToUnixTimestamp(new FileInfo(absDataDir + relPath).LastWriteTime);
+        
+        toUpdate.Add(relPath, fileIndex.GetUpdatedDirectory(relPath, dirTimestamp, childrenFiles, toUpdate, toDelete));
+      }
+  
       return changed;
     }
     
@@ -212,7 +184,7 @@ namespace mybox
     
     public void Sync() {
       // update index with status codes in accordance to the filesystem
-      scanDirectory(absDataDir + "/");  // TODO: shouldnt this only be done once at start up?
+      scanDirectory("/");  // TODO: shouldnt this only be done once at start up?
 
       walk("/");
       processLocalDeletes(); // we want to leave deletes until last in case there's some bytes we can use
@@ -323,17 +295,15 @@ namespace mybox
       } else if (remoteFile.Type != FileType.DIR && localFile.Type != FileType.DIR) {
       
         if (toUpdate.ContainsKey(localFile.Path)) {
-        // local changed, upload file to server
-      
-          if (toUpdate[localFile.Path].Checksum != remoteFile.Checksum) { 
-//            if (localFile.PreviousChecksum != remoteFile.Checksum) { // TODO: deal with this at some point
+        
+          ClientFile indexedFile = fileIndex.GetFile(localFile.Path);
+
+          if (indexedFile != null && indexedFile.Checksum != remoteFile.Checksum) 
             onFileConflict(remoteFile, localFile);
-          } else {
+          else // local changed, upload file to server
             onLocalChange(localFile);
-          }
-      
-        } else {
-          // remote changed, download file from server
+          
+        } else {// remote changed, download file from server
           onRemoteChange(remoteFile);
         }
 
@@ -386,22 +356,32 @@ namespace mybox
       writeMessage("Delete from server for locally deleted item: " + remoteFile.Path);
       socket.Send(Common.SignalToBuffer(Signal.deleteOnServer));
       Common.SendString(socket, remoteFile.Path);
-      // TODO: check return before updating local index
-      fileIndex.Remove(remoteFile.Path, remoteFile.Type);
+
+      if (Common.CheckSuccess(socket)) // check return before updating local index
+        fileIndex.Remove(remoteFile.Path, remoteFile.Type);
     }
     
     private void onRemoteDelete(ClientFile localFile) {
       writeMessage("Deleting local file: " + localFile.Path);        
       
       String absPath = absDataDir + localFile.Path;
-      
-      if (Directory.Exists(absPath))
-        Directory.Delete(absPath);
-      else
-        File.Delete(absPath);
-      // TODO: check return value before updating the index
-      
-      fileIndex.Remove(localFile.Path, localFile.Type);
+
+      bool deleteWorked = true;
+
+      try {
+        if (Directory.Exists(absPath))
+          Directory.Delete(absPath);
+        else
+          File.Delete(absPath);
+        // TODO: check to see if filesystem delete worked before updating the index
+        }
+      catch (Exception e) {
+        writeMessage("Error deleting: " + localFile.Path + " " + e.Message);
+        deleteWorked = false;
+      }
+
+      if (deleteWorked)
+        fileIndex.Remove(localFile.Path, localFile.Type);
     }
     
     /// <summary>
@@ -434,10 +414,8 @@ namespace mybox
     /// </param>
     private void uploadFile(ClientFile localFile) {
       socket.Send(Common.SignalToBuffer(Signal.c2s));
-      Common.SendFile(localFile.Path, socket, absDataDir);
-      // TODO: ask server if it sucessfully recieved the checksumed file before returning it here
-
-      fileIndex.Update(toUpdate[localFile.Path]);
+      if (Common.SendFile(localFile.Path, socket, absDataDir))
+        fileIndex.Update(toUpdate[localFile.Path]);
     }
     
     private void onRemoteChange(ClientFile remoteFile) {
@@ -453,7 +431,6 @@ namespace mybox
             
           // TODO: figure out how to update index recursively?  or does it already handle it?
           
-              
         }
         else 
           writeMessage("Local directory already exists: " + remoteFile.Path);
@@ -476,17 +453,15 @@ namespace mybox
       if (File.Exists(absLocalFilePath)) {
         writeMessage("upload locally new or modified file: " + localFile.Path);
         uploadFile(localFile);
-        
-        
       } else {
         writeMessage("create remote directory for locally new directory: " + localFile.Path);
         
         socket.Send(Common.SignalToBuffer(Signal.createDirectoryOnServer));
         
-        // TODO: update remote checksum ?
+        // TODO: update remote checksum
         Common.SendString(socket, localFile.Path);
-        fileIndex.Update(localFile);
-        // TODO: wait for reply to know that it was created on server before updating index
+        if (Common.CheckSuccess(socket))
+          fileIndex.Update(localFile);
 
         // note that creating a remote directory does not ensure it is in sync               
       }
