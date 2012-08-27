@@ -165,11 +165,11 @@ public partial class PreferencesWindow : Gtk.Window {
     
       clientConnection = new mybox.ClientServerConnection();
       clientConnection.SetConfigDir(mybox.ClientServerConnection.DefaultConfigDir); // quits if it fails
-        
+      clientConnection.LoadConfig(clientConnection.ConfigFile);
+      
       clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToFile));
       clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToTextView));
-
-      clientConnection.LoadConfig(clientConnection.ConfigFile);
+      
       labelAccount.Text = "Account: " + clientConnection.Account.User;
       clientConnection.Start();
     } catch (Exception ec) {

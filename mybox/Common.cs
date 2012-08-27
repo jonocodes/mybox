@@ -54,7 +54,10 @@ namespace mybox {
     yes = 16,
     no = 17,
     sucess = 18,
-    failure = 19
+    failure = 19,
+    syncCatchupFinished = 20,
+    clientWantsToSync = 21,
+    serverReadyToSync = 22
   }
 
 //  // only used on the client side database

@@ -268,13 +268,13 @@ namespace mybox {
         if (clientServerConnection == null || clientServerConnection.Account.User == null || clientServerConnection.Account.User == string.Empty) {
           clientServerConnection = new ClientServerConnection();
           
+          clientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
+          clientServerConnection.LoadConfig(clientServerConnection.ConfigFile);
+          
           clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
           clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));
           clientServerConnection.StatusHandler = setStatus;
-                
-          clientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
           
-          clientServerConnection.LoadConfig(clientServerConnection.ConfigFile);
           labelAccount.Text = "Account: " + clientServerConnection.Account.User;
         }
 

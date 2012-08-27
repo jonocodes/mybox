@@ -110,7 +110,7 @@ namespace mybox {
       Console.WriteLine("  The database currently contains " + accounts + " accounts");
       
       Console.WriteLine("Rebuilding files table from filesystem");
-      serverDB.RebuildFilesTable();
+      //serverDB.RebuildFilesTable();
 
       if (accounts == 0)
         Console.WriteLine("You will not be able to to use Mybox unless user are created on the server.");

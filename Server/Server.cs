@@ -48,8 +48,8 @@ namespace mybox {
     private Dictionary<String, HashSet<IntPtr>> multiClientMap = new Dictionary<String, HashSet<IntPtr>>();
 
 //    public static int DefaultQuota = 50;  // size in megabytes
-    public int Port = Common.DefaultCommunicationPort;
-    public IServerDB serverDB = null;
+    public int port = Common.DefaultCommunicationPort;
+    public IServerDB DB = null;
 
     public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
  //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
@@ -80,16 +80,16 @@ namespace mybox {
       WriteMessage("Starting server");
       WriteMessage("Loading config file " + configFile);
 
-      Port = LoadConfig(configFile, out serverDB);
-      serverDB.RebuildFilesTable();
+      port = LoadConfig(configFile, out DB);
+      //DB.RebuildFilesTable();
 
-      TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
+      TcpListener tcpListener = new TcpListener(IPAddress.Any, port);
 
       try {
         tcpListener.Start();
       }
       catch (SocketException e) {
-        WriteMessage("Unable to start listener on port " + Port + e.Message);
+        WriteMessage("Unable to start listener on port " + port + e.Message);
         throw;
       }
 
@@ -151,33 +151,37 @@ namespace mybox {
     /// </summary>
     /// <param name="id"></param>
     /// <param name="handle"></param>
-    public void AddToMultiMap(String id, IntPtr handle) {
+    public void AddToMultiMap(String userId, IntPtr handle, String userDataDir) {
 
-      if (multiClientMap.ContainsKey(id)) {
-        HashSet<IntPtr> thisMap = multiClientMap[id];
+      if (multiClientMap.ContainsKey(userId)) {
+        HashSet<IntPtr> thisMap = multiClientMap[userId];
         thisMap.Add(handle);
-        multiClientMap[id] = thisMap;  // should overwrite the old map
+        multiClientMap[userId] = thisMap;  // should overwrite the old map
       }
       else {
         HashSet<IntPtr> thisMap = new HashSet<IntPtr>();
         thisMap.Add(handle);
-        multiClientMap[id] = thisMap;
+        multiClientMap[userId] = thisMap;
+        
+        DB.RebuildFileEntries(userDataDir, userId);
       }
     }
 
-    public void RemoveFromMultiMap(String id, IntPtr handle) {
+    public void RemoveFromMultiMap(String userId, IntPtr handle) {
 
-      if (multiClientMap.ContainsKey(id)) {
-        HashSet<IntPtr> thisMap = multiClientMap[id];
+      if (multiClientMap.ContainsKey(userId)) {
+        HashSet<IntPtr> thisMap = multiClientMap[userId];
 
         if (thisMap.Contains(handle)) {
           thisMap.Remove(handle);
-          multiClientMap[id] = thisMap;
+          multiClientMap[userId] = thisMap;
         }
+        
+        if (thisMap.Count == 0)
+          multiClientMap.Remove(userId);
       }
     }
     
-/*
     public void TellClientsToSync(IntPtr myHandle, String accountId) {
     
       HashSet<IntPtr> thisMap = multiClientMap[accountId];
@@ -186,39 +190,10 @@ namespace mybox {
         if (thisHandle == myHandle)
           continue;
           
-      clients[thisHandle].TellClientToSync();
+        clients[thisHandle].TellClientToSync();
+      }
     
     }
-*/
-
-//    /// <summary>
-//    /// Send catchup commands to all connected clients attached to the same account
-//    /// </summary>
-//    /// <param name="myHandle">the handle of the client with the originating signal</param>
-//    /// <param name="accountId">the account that the client belongs to</param>
-//    /// <param name="inputOperation">the original operation that was made</param>
-//    /// <param name="arg">additional arguments to send along with the operation</param>
-//    [MethodImpl(MethodImplOptions.Synchronized)]
-//    public void SpanCatchupOperation(IntPtr myHandle, String accountId, Signal inputOperation, String arg) {
-//
-//      HashSet<IntPtr> thisMap = multiClientMap[accountId];
-//
-//      foreach (IntPtr thisHandle in thisMap) {
-//        if (thisHandle == myHandle)
-//          continue;
-//
-//        WriteMessage("spanCatchupOperation from " + myHandle + " to " + thisHandle + " (" + inputOperation.ToString() + "," + arg + ")");
-//
-//        try {
-//          clients[thisHandle].SendCatchup(inputOperation, arg);
-//        }
-//        catch (Exception e) {
-//          WriteMessage("Exception in spanCatchupOperation " + e.Message);
-//          Common.ExitError();
-//        }
-//      }
-//
-//    }
 
     /// <summary>
     /// Disconnect a ServerClientConnection from the server

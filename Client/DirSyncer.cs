@@ -21,7 +21,7 @@ namespace mybox
     private List<ClientFile> localDeletes = new List<ClientFile>();
     private Dictionary<string, ClientFile> toDelete = new Dictionary<string, ClientFile>();
     private Dictionary<string, ClientFile> toUpdate = new Dictionary<string, ClientFile>();
-
+    
     protected virtual void OnFinished(EventArgs e) {
       if (Finished != null)
         Finished(this, e);
@@ -95,19 +95,27 @@ namespace mybox
     }
     
 
-    private bool scanDirectory(String relPath) {
+    private bool scanDirectory(String relPath, bool subDirChanged = false) {
       
       writeMessage("scanDirectory: " + relPath);
       
-      bool changed = false;
+      bool changed = subDirChanged; //false;
       
       Dictionary<String, ClientFile> childrenFiles = toMap(getFileList(relPath));
       Dictionary<String, ClientFile> childrenIndex = toMap(fileIndex.GetDirList(relPath));
       
       // recurse depth first into directories before processing files
       foreach (KeyValuePair<String, ClientFile> kvp in childrenFiles) {
-        if (kvp.Value.Type == FileType.DIR)
-          changed = scanDirectory(kvp.Key);
+        if (kvp.Value.Type == FileType.DIR) {
+          bool subDir = false;
+          
+          if (!childrenIndex.ContainsKey(kvp.Key))
+            subDir = true;
+            
+          if (scanDirectory(kvp.Key, subDir))
+            changed = true;
+          
+        }
       }
       
       
@@ -143,11 +151,15 @@ namespace mybox
           changed = true;
         }
       }
-      
+      /*
       // if the local directory is new, then an update is in order
       if (!childrenIndex.ContainsKey(relPath)) {
         changed = true;
       }
+  */
+      if (childrenFiles.Count != childrenIndex.Count)
+        changed = true;
+        
   
       if (changed) {
         writeMessage("changed records found, new directory record: " + relPath);
@@ -182,14 +194,17 @@ namespace mybox
       return result;
     }
     
-    public void Sync() {
+    public void Sync(bool catchupSync) {
       // update index with status codes in accordance to the filesystem
       scanDirectory("/");  // TODO: shouldnt this only be done once at start up?
 
       walk("/");
       processLocalDeletes(); // we want to leave deletes until last in case there's some bytes we can use
 
-      socket.Send(Common.SignalToBuffer(Signal.syncFinished));
+      if (catchupSync)
+        socket.Send(Common.SignalToBuffer(Signal.syncCatchupFinished));
+      else
+        socket.Send(Common.SignalToBuffer(Signal.syncFinished));
 
 #if DEBUG
       //int notUptodate = fileIndex.CheckUptodate();

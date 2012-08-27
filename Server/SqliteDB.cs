@@ -40,7 +40,7 @@ namespace mybox
     private DbConnection dbConnection = null;
 
     private String baseDataDir = Common.UserHome + "/.mybox/serverData/";
-    private readonly String defaultConnectionString = "URI=file:server.db,version=3";
+    private String defaultConnectionString;
 
     public SqliteDB() {
       defaultConnectionString = "URI=file:"+ baseDataDir +"server.db,version=3";
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     }
 
     public String GetDataDir(ServerUser user) {
-      return baseDataDir + user.id + "/";
+      return baseDataDir + user.id /*+ "/"*/;
     }
 
     public bool CheckPassword(String pwordOrig, String pwordHashed) {
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS `users` (
       return new KeyValuePair<long, string>(totalSize, cs);
     }
     
-    
+    /*
     /// <summary>
     /// Rebuilds the files table by checksumming all the files in the directory
     /// </summary>
@@ -210,6 +210,19 @@ CREATE TABLE IF NOT EXISTS `users` (
       String[] children = Directory.GetDirectories(baseDataDir);
       foreach (string child in children)
         rebuildFilesTableDir(child, -1);
+    }
+    */
+    
+    public void RebuildFileEntries(string absParentDir, string userId) {
+    
+      // remove old entries
+      DbCommand command = dbConnection.CreateCommand();
+      command.CommandText = "DELETE FROM files WHERE user=" + userId;
+      command.ExecuteNonQuery();
+      
+      // TODO: make this faster by storing server only timestamps so we can scan for changes instead of deleting everything
+
+      rebuildFilesTableDir(absParentDir, -1);
     }
     
     /// <summary>
@@ -228,8 +241,8 @@ CREATE TABLE IF NOT EXISTS `users` (
 
       string relChildPath = absParentDir.Substring(baseDataDir.Length, absParentDir.Length-baseDataDir.Length);
 
-      Console.WriteLine("scanDirectory called on " + absParentDir + " " + relChildPath);
-                  
+      Console.WriteLine("rebuildFilesTableDir called on " + absParentDir + " " + relChildPath);
+
       string userId = Regex.Match(relChildPath, @"^[0-9]+").Value;
 
       DbCommand command = dbConnection.CreateCommand ();

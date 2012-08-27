@@ -90,6 +90,9 @@ namespace mybox {
     private Thread gatherDirectoryUpdatesThread;
 
     private bool paused = false;
+    private bool catchupSync = false;
+    
+    private bool listeningToServer = false;
     
     private DirSyncer dirSyncer = null;
 
@@ -202,8 +205,6 @@ namespace mybox {
     public void Start() {
       attemptConnection(5);
 
-      //enableDirListener();
-
       writeMessage("Client ready. Startup sync.");
       
       sync();
@@ -215,12 +216,8 @@ namespace mybox {
     /// <param name="configFile"></param>
     public void LoadConfig(String configFile) {
 
-//      writeMessage("Loading config file " + configFile);
-
       try {
         IniParser iniParser = new IniParser(configFile);
-
-        // TODO: turn these strings into constants that can be referred to
 
         account.ServerName = iniParser.GetSetting("settings", CONFIG_SERVER); // returns NULL when not found
         account.ServerPort = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));
@@ -253,28 +250,6 @@ namespace mybox {
 
       absDataDir = Common.EndDirWithoutSlash(account.Directory);
     }
-
-/*
-    /// <summary>
-    /// Compares the client to the client index to the server
-    /// </summary>
-    private void fullSync() {
-
-      writeMessage("disabling listener");
-      disableDirListener(); // hack while incoming set gets figured out
-
-      setStatus(ClientStatus.SYNCING);
-
-...
-
-      processOutQueue();
-
-      writeMessage("enableing listener since sync is done");
-      enableDirListener();
-
-
-    }
-*/
 
 
     //public void stop() {
@@ -321,24 +296,19 @@ namespace mybox {
 
       }
 
-//      listenToServer();
-
       List<string> outArgs = new List<string>();
       outArgs.Add(account.User);
       outArgs.Add(account.Password);
 
-      String jsonOut = JsonSerializer.Serialize(outArgs); //JsonConvert.SerializeObject(outArgs);
+      String jsonOut = JsonSerializer.Serialize(outArgs);
 
       writeMessage("jsonOut: "+ jsonOut);
 
       sendCommandToServer(Signal.attachaccount);
       Common.SendString(socket, jsonOut);
       
-      // handleInput(Common.BufferToSignal(inputSignalBuffer));//attachaccount_reponse
-      
       Dictionary<string, string> jsonMap =
         JsonSerializer.Deserialize<Dictionary<string, string>>(Common.ReceiveString(socket));
-            //JsonConvert.DeserializeObject<Dictionary<string, string>>(Common.ReceiveString(socket));
 
       if (jsonMap["status"] != "success") {// TODO: change to signal
         writeMessage("Unable to attach account. Server response: " + jsonMap["error"]);
@@ -348,14 +318,11 @@ namespace mybox {
         Stop();
       }
       else {
-        //writeMessage("set account salt to: " + account.Salt);
-
         if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
           writeMessage("Client and Server Mybox versions do not match");
         }
       }
       
-
       dirSyncer = new DirSyncer(absDataDir, fileIndex, socket);
       
       setStatus(ClientStatus.READY);
@@ -440,7 +407,6 @@ namespace mybox {
       attemptConnection(5);
     }
     
-
     /// <summary>
     /// Connect a socket to a server and port
     /// </summary>
@@ -528,29 +494,35 @@ namespace mybox {
 
       writeMessage("Wait finished.");
 
-//      catchupSync();
       sync();
     }
 
+    //[MethodImpl(MethodImplOptions.Synchronized)]
     private void sync() {
     
       setStatus(ClientStatus.SYNCING);
 
       disableDirListener();
+      
+      if (listeningToServer)
+        socket.Send(Common.SignalToBuffer(Signal.clientWantsToSync));
 
-      dirSyncer.Sync();
-      //listenToServer();
+      dirSyncer.Sync(catchupSync);
+      
+      listenToServer();  // put client into listening mode
       
       enableDirListener();
       
       setStatus(ClientStatus.READY);
+      
+      catchupSync = false;
     }
 
     /// <summary>
     /// Send a command signal to the server
     /// </summary>
     /// <param name="signal"></param>
-    [MethodImpl(MethodImplOptions.Synchronized)]
+//    [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToServer(Signal signal) {
       try {
         socket.Send(Common.SignalToBuffer(signal));
@@ -561,33 +533,10 @@ namespace mybox {
     }
 
     /// <summary>
-    /// Deal with incoming signal from server
-    /// </summary>
-    /// <param name="signal"></param>
-    private void handleInput(Signal signal) {
-
-//      if (paused)
-//        return;
-
-      writeMessage("Client handling input for signal " + signal);
-
-      switch (signal) {
-        case Signal.serverRequestingSync:
-          sync();
-          break;
-
-        default:
-          writeMessage("Unknown command from server: " + signal);
-          break;
-      }
-
-    }
-    
-
-    /// <summary>
     /// Listen to the server via threadless async callback
     /// </summary>
     private void listenToServer() {
+      listeningToServer = true;
       socket.BeginReceive(inputSignalBuffer, 0, 1, SocketFlags.None, new AsyncCallback(onReceiveSignalComplete), null);
     }
 
@@ -604,8 +553,17 @@ namespace mybox {
           Start();
         } else {
         
-          if (Common.BufferToSignal(inputSignalBuffer) == Signal.serverRequestingSync) 
+          listeningToServer = false;
+          
+          Signal input = Common.BufferToSignal(inputSignalBuffer);
+          
+          if (input == Signal.serverRequestingSync) {
+            disableDirListener();
+            catchupSync = true;
             sync();
+          } else if (input == Signal.serverReadyToSync) {
+            // just toss it, becasuse we want it to waste the listener
+          }
           else
             throw new Exception("Client received unknown signal " + inputSignalBuffer);
 
@@ -616,6 +574,7 @@ namespace mybox {
         //close();
         Start();
       }
+      
     }
 
   }

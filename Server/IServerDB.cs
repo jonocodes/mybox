@@ -62,8 +62,6 @@ namespace mybox
 
     // TODO: should this be abstract so we can reuse code
 
-    // TODO: write RebuildFileTable, to checksum all files on system when the DB is emptied
-
     String GetDataDir(ServerUser user);
 
     String BaseDataDir { get; }
@@ -72,7 +70,9 @@ namespace mybox
 
     void Connect(String connectionString, String baseDataDir);
     
-    void RebuildFilesTable();
+//    void RebuildFilesTable();
+    void RebuildFileEntries(String absParentDir, String userId);
+//    KeyValuePair<long, string> rebuildFilesTableDir(string absParentDir, int parentId);
 
     bool CheckPassword(String pwordOrig, String pwordHashed);
 

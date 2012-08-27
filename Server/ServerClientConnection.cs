@@ -109,6 +109,13 @@ namespace mybox {
       }
     }
 
+    public void TellClientToSync() {
+      Server.WriteMessage("Telling client to sync, handle: " + handle);
+    
+      socket.Send(Common.SignalToBuffer(Signal.serverRequestingSync));
+      // TODO: catch
+    }
+/*
     [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToClient(Signal signal) {
       try {
@@ -119,7 +126,7 @@ namespace mybox {
         close();
       }
     }
-
+*/
     /// <summary>
     /// Attempt to authenticate the client via credentials. If it matches an account on the server return true.
     /// </summary>
@@ -128,19 +135,19 @@ namespace mybox {
     /// <returns></returns>
     private bool attachUser(String userName, String password) {
 
-      User = server.serverDB.GetUserByName(userName);
+      User = server.DB.GetUserByName(userName);
 
       if (User == null) {
         Server.WriteMessage("User does not exist: " + userName); // TODO: return false?
         return false;
       }
 
-      if (!server.serverDB.CheckPassword(password, User.password)) {
+      if (!server.DB.CheckPassword(password, User.password)) {
         Server.WriteMessage("Password incorrect for: " + userName);
         return false;
       }
 
-      dataDir = server.serverDB.GetDataDir(User);
+      dataDir = server.DB.GetDataDir(User);
 
       if (!Directory.Exists(dataDir)) {
       
@@ -170,14 +177,23 @@ namespace mybox {
           
         case Signal.syncFinished:
           
-          server.serverDB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
-          
+          server.DB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
           updatedDirectories.Clear();
           
-          // TODO:  server.TellClientsToSync(handle, User.id);
-          // here is where we will tell the other clients to sync
+          server.TellClientsToSync(handle, User.id);
           
+          break;
           
+        case Signal.syncCatchupFinished:
+          
+          server.DB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
+          updatedDirectories.Clear();
+          
+          break;
+          
+        case Signal.clientWantsToSync:
+          socket.Send(Common.SignalToBuffer(Signal.serverReadyToSync));
+        
           break;
 
         case Signal.clientWants:
@@ -197,7 +213,7 @@ namespace mybox {
           MyFile newFile = Common.ReceiveFile(socket, dataDir);
 
           if (newFile != null)
-            updatedDirectories.Add(server.serverDB.UpdateFile(User, newFile));
+            updatedDirectories.Add(server.DB.UpdateFile(User, newFile));
 
           //server.SpanCatchupOperation(handle, User.id, signal, newFile.Path);
           break;
@@ -206,7 +222,7 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
 
           if (Common.DeleteLocal(dataDir + relPath)) {
-            updatedDirectories.Add(server.serverDB.RemoveFile(User, relPath)); // TODO: check return value, or exception
+            updatedDirectories.Add(server.DB.RemoveFile(User, relPath)); // TODO: check return value, or exception
             socket.Send(Common.SignalToBuffer(Signal.sucess));
           }
           else 
@@ -218,7 +234,7 @@ namespace mybox {
           relPath = Common.ReceiveString(socket);
           
           if (Common.CreateLocalDirectory(dataDir + relPath)) {
-            updatedDirectories.Add(server.serverDB.UpdateFile(User,
+            updatedDirectories.Add(server.DB.UpdateFile(User,
               new MyFile(relPath, FileType.DIR, 0, Common.Md5Hash(string.Empty))));
 
             socket.Send(Common.SignalToBuffer(Signal.sucess));
@@ -237,7 +253,7 @@ namespace mybox {
           
           Server.WriteMessage("checking DB for file list for path: " + path);
           
-          List<List<string>> fileListToSerialize = server.serverDB.GetDirListSerializable(User, path);
+          List<List<string>> fileListToSerialize = server.DB.GetDirListSerializable(User, path);
 
           String jsonOutStringFiles = jsonSerializer.Serialize(fileListToSerialize);  //JsonConvert.SerializeObject(fileListToSerialize);
 
@@ -273,13 +289,13 @@ namespace mybox {
             //jsonOut.Add("quota", Account.quota.ToString());
             //jsonOut.Add("salt", Account.salt);
 
-            server.AddToMultiMap(User.id, handle);
+            server.AddToMultiMap(User.id, handle, dataDir);
           }
           else {
             jsonOut.Add("status", "failed");
             jsonOut.Add("error", "login invalid");
 
-            close ();
+            close();
             // TODO: disconnect the client here
           }
           
