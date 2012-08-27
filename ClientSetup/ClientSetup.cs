@@ -75,11 +75,11 @@ namespace mybox {
       if (input != String.Empty) account.Password = input;
     }
 
-    public static bool WriteConfig(ClientAccount account) {
+    public static bool WriteConfig(ClientAccount account, String configFile) {
     
       // TODO: handle existing file
 
-      using (System.IO.StreamWriter file = new System.IO.StreamWriter(ClientServerConnection.ConfigFile, false)) {
+      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
         file.WriteLine("[settings]");
         file.WriteLine(ClientServerConnection.CONFIG_SERVER + "=" + account.ServerName);
         file.WriteLine(ClientServerConnection.CONFIG_PORT + "=" + account.ServerPort.ToString());
@@ -89,7 +89,7 @@ namespace mybox {
         file.WriteLine(ClientServerConnection.CONFIG_DIR + "=" + account.Directory);
       }
 
-      Console.WriteLine("Config file written: " + ClientServerConnection.ConfigFile);
+      Console.WriteLine("Config file written: " + configFile);
 
       return true;
     }
@@ -104,8 +104,6 @@ namespace mybox {
     }
 
     public ClientSetup() {
-
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
 
       // set up the defaults
       account = new ClientAccount();
@@ -124,11 +122,13 @@ namespace mybox {
       configDir = Common.EndDirWithSlash(configDir);
     
       // attach the account to the server to get the user
-      ClientServerConnection client = new ClientServerConnection();
+      ClientServerConnection clientConnection = new ClientServerConnection();
+
+      clientConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
 
       Console.WriteLine("client initialized. trying coonection...");
 
-      client.StartGetAccountMode(account);
+      clientConnection.StartGetAccountMode(account);
 
       // data directory
       if (!Common.CreateLocalDirectory(account.Directory)) {  // TODO: copy this to client startup
@@ -143,12 +143,12 @@ namespace mybox {
       }
 
       try {
-        ClientServerConnection.SetConfigDir(configDir);
+        clientConnection.SetConfigDir(configDir);
       } catch (Exception) {
         // toss config file not found exception since it is expected for a new setup
       }
 
-      if (!WriteConfig(account))
+      if (!WriteConfig(account, clientConnection.ConfigFile))
         Console.WriteLine("Unable to save config file");
       else
         Console.WriteLine("Setup finished successfully");

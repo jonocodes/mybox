@@ -68,10 +68,10 @@ namespace mybox {
     private const String logFileName = "client.log";
     private const String indexFileName = "client.db";
 
-    private static String configFile = null;
-    private static String logFile = null;
-    private static FileIndex fileIndex = null;
-    private static String absDataDir = null;
+    private String configFile = null;
+    private String logFile = null;
+    private FileIndex fileIndex = null;
+    private String absDataDir = null;
 
     // config file constants
 
@@ -108,11 +108,11 @@ namespace mybox {
       get { return paused; }
     }
 
-    public static String ConfigFile {
+    public String ConfigFile {
       get { return configFile; }
     }
     
-    public static String LogFile {
+    public String LogFile {
       get { return logFile; }
     }
 
@@ -130,7 +130,7 @@ namespace mybox {
 
     public delegate void OverlayHanderDelegate(bool upToDate);
 
-    public static OverlayHanderDelegate OverlayHandler;
+    public OverlayHanderDelegate OverlayHandler;
 
     private void setOverlay(bool upToDate) {
       if (OverlayHandler != null)
@@ -143,7 +143,7 @@ namespace mybox {
 
     public delegate void StatusHandlerDelegate(ClientStatus status);
 
-    public static StatusHandlerDelegate StatusHandler;
+    public StatusHandlerDelegate StatusHandler;
 
     private void setStatus(ClientStatus status) {
       if (StatusHandler != null)
@@ -163,12 +163,12 @@ namespace mybox {
     /// <summary>
     /// this will be a dynamic list of logging handlers
     /// </summary>
-    public static List<LoggingHandlerDelegate> LogHandlers = new List<LoggingHandlerDelegate>();
+    public List<LoggingHandlerDelegate> LogHandlers = new List<LoggingHandlerDelegate>();
 
     /// <summary>
     /// The logic for adding and removing logging handlers
     /// </summary>
-    public static event LoggingHandlerDelegate LoggingHandlers {
+    public event LoggingHandlerDelegate LoggingHandlers {
       add {
         if (!LogHandlers.Contains(value)) {
           LogHandlers.Add(value);
@@ -183,7 +183,7 @@ namespace mybox {
     /// helper method which passes a message to all of the event handlers
     /// </summary>
     /// <param name="message"></param>
-    private static void writeMessage(String message) {
+    private void writeMessage(String message) {
       foreach (LoggingHandlerDelegate handler in LogHandlers) {
         handler(message);
       }
@@ -215,7 +215,7 @@ namespace mybox {
     /// <param name="configFile"></param>
     public void LoadConfig(String configFile) {
 
-      writeMessage("Loading config file " + configFile);
+//      writeMessage("Loading config file " + configFile);
 
       try {
         IniParser iniParser = new IniParser(configFile);
@@ -482,7 +482,7 @@ namespace mybox {
     /// Set the config directory
     /// </summary>
     /// <param name="absPath"></param>
-    public static void SetConfigDir(String absPath) {
+    public void SetConfigDir(String absPath) {
 
       if (!Directory.Exists(absPath))
         throw new Exception("Specified config directory does not exist: " + absPath);

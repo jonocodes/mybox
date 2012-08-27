@@ -66,7 +66,7 @@ namespace mybox {
 
       Console.WriteLine ("Welcome to the Mybox server setup wizard");
 
-      int port = Server.Port;
+      int port = Common.DefaultCommunicationPort;
 //    private int defaultQuota = Server.DefaultQuota;
       Type backend = typeof(SqliteDB);
 

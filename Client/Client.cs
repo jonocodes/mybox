@@ -32,6 +32,8 @@ namespace mybox {
   /// </summary>
   public class Client {
 
+    ClientServerConnection clientConnection = new ClientServerConnection();
+
     private void setStatus(ClientStatus status) {
 //      Console.WriteLine("Status: " + status.ToString());
     }
@@ -46,8 +48,8 @@ namespace mybox {
     /// this will handle logging the message to a file
     /// </summary>
     /// <param name="message"></param>
-    private static void logToFile(String message) {
-      File.AppendAllText(ClientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
+    private void logToFile(String message) {
+      File.AppendAllText(clientConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
     }
 
     /// <summary>
@@ -65,14 +67,16 @@ namespace mybox {
 
     public Client(String configDir) {
 
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
-      ClientServerConnection.StatusHandler = setStatus;
 
       try {
-        ClientServerConnection.SetConfigDir(configDir);
-        ClientServerConnection clientConnection = new ClientServerConnection();
-        clientConnection.LoadConfig(ClientServerConnection.ConfigFile);
+        
+        clientConnection.SetConfigDir(configDir);
+        clientConnection.LoadConfig(clientConnection.ConfigFile);
+        
+        clientConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
+        clientConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
+        clientConnection.StatusHandler = setStatus;
+        
         clientConnection.Start();
       }
       catch (Exception e) {

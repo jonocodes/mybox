@@ -36,7 +36,7 @@ namespace mybox {
 
     public ServerAdmin(String configFile) {
 
-      serverDb = Server.LoadConfig(configFile);
+      Server.LoadConfig(configFile, out serverDb);
 
       Console.WriteLine("Starting ServerAdmin command line utility...");
 

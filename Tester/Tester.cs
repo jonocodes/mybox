@@ -139,12 +139,14 @@ namespace mybox
       Directory.CreateDirectory(accountB.Directory);
       
       // server setup
-      ServerSetup.WriteConfig(serverConfigFile, Server.Port, typeof(SqliteDB), serverDb, baseServerDataDir);
+      ServerSetup.WriteConfig(serverConfigFile, Common.DefaultCommunicationPort, typeof(SqliteDB), serverDb, baseServerDataDir);
       
       // set up two client accounts
       
+      ClientServerConnection cscDummy = new ClientServerConnection();
+        
       try {
-        ClientServerConnection.SetConfigDir(clientConfigDirA);
+        cscDummy.SetConfigDir(clientConfigDirA);
       } catch (Exception) {
         // toss config file not found exception since it is expected for a new setup
       }
@@ -155,7 +157,7 @@ namespace mybox
         // toss config file not found exception since it is expected for a new setup
       }
       */
-      ClientSetup.WriteConfig(accountA);
+      ClientSetup.WriteConfig(accountA, cscDummy.ConfigFile);
       //ClientSetup.WriteConfig(accountB);
       
       // manually insert account into test database

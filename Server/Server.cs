@@ -47,8 +47,8 @@ namespace mybox {
     // map of userId => set of all connected clients that belong to that user
     private Dictionary<String, HashSet<IntPtr>> multiClientMap = new Dictionary<String, HashSet<IntPtr>>();
 
-    public static int DefaultQuota = 50;  // size in megabytes
-    public static int Port = Common.DefaultCommunicationPort;
+//    public static int DefaultQuota = 50;  // size in megabytes
+    public int Port = Common.DefaultCommunicationPort;
     public IServerDB serverDB = null;
 
     public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
@@ -80,7 +80,7 @@ namespace mybox {
       WriteMessage("Starting server");
       WriteMessage("Loading config file " + configFile);
 
-      serverDB = LoadConfig(configFile);
+      Port = LoadConfig(configFile, out serverDB);
       serverDB.RebuildFilesTable();
 
       TcpListener tcpListener = new TcpListener(IPAddress.Any, Port);
@@ -119,14 +119,16 @@ namespace mybox {
     /// Set member variables from config file
     /// </summary>
     /// <param name="configFile"></param>
-    public static IServerDB LoadConfig(String configFile) {
+    public static int LoadConfig(String configFile, out IServerDB serverDB) {
 
-      IServerDB serverDB = null;
+      serverDB = null;
+
+      int port = -1;
 
       try {
         IniParser iniParser = new IniParser(configFile);
 
-        Port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
+        port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
         String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
         String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
         Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
@@ -141,7 +143,7 @@ namespace mybox {
         Common.ExitError();
       }
 
-      return serverDB;
+      return port;
     }
 
     /// <summary>

@@ -99,7 +99,7 @@ namespace mybox {
     /// </summary>
     /// <param name="message"></param>
     private void logToFile(String message) {
-      File.AppendAllText(ClientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
+      File.AppendAllText(clientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
     }
 
     /// <summary>
@@ -187,9 +187,6 @@ namespace mybox {
       tabControl.SelectTab(tabMessages);
       ShowDialog();
 
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
-      ClientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));
-
       // start the process
       backgroundWorker.RunWorkerAsync();
     }
@@ -230,7 +227,6 @@ namespace mybox {
       trayIcon.Visible = true;
       trayIcon.DoubleClick += new System.EventHandler(openDirectory);
 
-      ClientServerConnection.StatusHandler = setStatus;
     }
 
     private void setIconSubtitle(String value) {
@@ -270,9 +266,15 @@ namespace mybox {
 
         // only load the config, if it has not been loaded once already
         if (clientServerConnection == null || clientServerConnection.Account.User == null || clientServerConnection.Account.User == string.Empty) {
-          ClientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
           clientServerConnection = new ClientServerConnection();
-          clientServerConnection.LoadConfig(ClientServerConnection.ConfigFile);
+          
+          clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
+          clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));
+          clientServerConnection.StatusHandler = setStatus;
+                
+          clientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
+          
+          clientServerConnection.LoadConfig(clientServerConnection.ConfigFile);
           labelAccount.Text = "Account: " + clientServerConnection.Account.User;
         }
 

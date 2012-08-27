@@ -15,7 +15,7 @@ public partial class PreferencesWindow : Gtk.Window {
   private Pixbuf iconWorking;
   private Pixbuf iconReady;
 
-  private mybox.ClientServerConnection client;
+  private mybox.ClientServerConnection clientConnection;
 
   private ImageMenuItem menuItemPause = new ImageMenuItem("Pause");
 
@@ -55,7 +55,7 @@ public partial class PreferencesWindow : Gtk.Window {
   /// </summary>
   /// <param name="message"></param>
   private void logToFile(String message) {
-    File.AppendAllText(mybox.ClientServerConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
+    File.AppendAllText(clientConnection.LogFile, DateTime.Now + " : " + message + Environment.NewLine);
   }
 
   /// <summary>
@@ -123,11 +123,11 @@ public partial class PreferencesWindow : Gtk.Window {
 //    popupMenu.Children[menuItemPause].la
 
 
-    if (client.Paused) {  // unpause it
-      client.Unpause();
+    if (clientConnection.Paused) {  // unpause it
+      clientConnection.Unpause();
       menuItemPause.Name = "Resume";
     } else {  // pause it
-      client.Pause();
+      clientConnection.Pause();
       menuItemPause.Name = "Pause";
     }
   }
@@ -138,7 +138,7 @@ public partial class PreferencesWindow : Gtk.Window {
 
     ImageMenuItem menuItemDir = new ImageMenuItem("Open Mybox folder");
     popupMenu.Add(menuItemDir);
-    menuItemDir.Activated += delegate { System.Diagnostics.Process.Start(client.DataDir); };
+    menuItemDir.Activated += delegate { System.Diagnostics.Process.Start(clientConnection.DataDir); };
 
     ImageMenuItem menuItemPrefs = new ImageMenuItem("Preferences");
     popupMenu.Add(menuItemPrefs);
@@ -161,16 +161,17 @@ public partial class PreferencesWindow : Gtk.Window {
 
   private void doWork() {
 
-    mybox.ClientServerConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToFile));
-    mybox.ClientServerConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToTextView));
-
     try {
-      mybox.ClientServerConnection.SetConfigDir(mybox.ClientServerConnection.DefaultConfigDir); // quits if it fails
-      client = new mybox.ClientServerConnection();
+    
+      clientConnection = new mybox.ClientServerConnection();
+      clientConnection.SetConfigDir(mybox.ClientServerConnection.DefaultConfigDir); // quits if it fails
+        
+      clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToFile));
+      clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToTextView));
 
-      client.LoadConfig(mybox.ClientServerConnection.ConfigFile);
-      labelAccount.Text = "Account: " + client.Account.User;
-      client.Start();
+      clientConnection.LoadConfig(clientConnection.ConfigFile);
+      labelAccount.Text = "Account: " + clientConnection.Account.User;
+      clientConnection.Start();
     } catch (Exception ec) {
       logToFile("Error: " + ec.Message);
       logToTextView("Error: " + ec.Message);
