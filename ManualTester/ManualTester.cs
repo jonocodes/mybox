@@ -16,7 +16,7 @@ namespace mybox
     String file3client;
     String file1server;
 
-    public void Init() {
+    public void Setup() {
       
       Tester.Setup();
       
@@ -36,9 +36,13 @@ namespace mybox
     
     public ManualTester() {
     
-      Init();
+      Setup();
       
-      Directory.CreateDirectory(dir1client);
+      File.AppendAllText(file1server, "abc");
+    
+      Tester.StartProcesses();
+    
+//      Directory.CreateDirectory(dir1client);
       File.AppendAllText(file3client, "abc");
       //File.AppendAllText(file1client, "abc");
       

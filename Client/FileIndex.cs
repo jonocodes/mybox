@@ -271,10 +271,9 @@ namespace mybox {
       Dictionary<string, ClientFile> toUpdate,
       Dictionary<string, ClientFile> toDelete) {
     
-      DbCommand clearCommand = dbConnection.CreateCommand();
-      
-      clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ relPath +"_%'";
-      DbReader reader = clearCommand.ExecuteReader();
+      DbCommand cmd = dbConnection.CreateCommand();
+      cmd.CommandText = "SELECT * FROM files WHERE path LIKE '"+ relPath +"_%'";
+      DbReader reader = cmd.ExecuteReader();
       
       String str = string.Empty;
       long size = 0;
@@ -347,6 +346,35 @@ namespace mybox {
       paramSize.Value = file.Size;
       paramChecksum.Value = file.Checksum;
       commandInsertOrReplace.ExecuteNonQuery();
+    }
+
+    public void UpdateDirectoryEntry(String path, int dirTimestamp) {
+    
+      Console.WriteLine("FileIndex UpdateDirectoryEntry " + path);
+      
+      DbCommand clearCommand = dbConnection.CreateCommand();
+      // make sure Directories come before files
+      clearCommand.CommandText = "SELECT * FROM files WHERE path LIKE '"+ path +"_%' ORDER BY type, path";
+      DbReader reader = clearCommand.ExecuteReader();
+      
+      String str = string.Empty;
+      long size = 0;
+      
+      while (reader.Read()) {
+
+        String childPath = reader["path"].ToString().Remove(0, path.Length);
+      
+        if (childPath.LastIndexOf('/') <= 0) {
+          str += reader["path"].ToString() + reader["checksum"].ToString() + reader["type"].ToString();
+          size += long.Parse(reader["size"].ToString());
+        }
+      }
+      
+      reader.Close();
+
+      Console.WriteLine(" checksumming dir string: " + str);
+
+      Update(new ClientFile(path, FileType.DIR, size, Common.Md5Hash(str), dirTimestamp));
     }
 
     /// <summary>

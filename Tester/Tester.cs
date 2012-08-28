@@ -86,6 +86,27 @@ namespace mybox
       Assert.IsTrue(AreDirectoriesEqual(accountA.Directory, baseServerUserDir));
     }
     
+    public static void StartProcesses() {
+      // start processes
+      
+      if (serverThread == null) {
+        serverThread  = new Thread((ThreadStart)delegate {  new Server(serverConfigFile);  });
+        serverThread.Start();
+        Thread.Sleep(500); // wait for the server to start
+      }
+      
+      if (clientThreadA == null) {
+        clientThreadA = new Thread((ThreadStart)delegate {  new Client(clientConfigDirA);  });
+        clientThreadA.Start();
+      }
+      /*
+      if (clientThreadB == null) {
+        clientThreadB = new Thread((ThreadStart)delegate {  new Client(clientConfigDirB);  });
+        clientThreadB.Start();
+      }
+      */
+    }
+    
     public static void Setup() {
     
       if (setupRun)
@@ -177,24 +198,7 @@ namespace mybox
       */
       // TODO: manually insert user with known ID here
       
-      // start processes
       
-      if (serverThread == null) {
-        serverThread  = new Thread((ThreadStart)delegate {  new Server(serverConfigFile);  });
-        serverThread.Start();
-        Thread.Sleep(500); // wait for the server to start
-      }
-      
-      if (clientThreadA == null) {
-        clientThreadA = new Thread((ThreadStart)delegate {  new Client(clientConfigDirA);  });
-        clientThreadA.Start();
-      }
-      /*
-      if (clientThreadB == null) {
-        clientThreadB = new Thread((ThreadStart)delegate {  new Client(clientConfigDirB);  });
-        clientThreadB.Start();
-      }
-      */
       setupRun = true;
     }
 
