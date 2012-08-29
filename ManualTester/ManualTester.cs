@@ -9,24 +9,21 @@ namespace mybox
   /// Manual tester since NUnit output was anoying me
   /// </summary>
   class ManualTester {
-      
-    String file1client;
-    String file2client;
-    String dir1client;
-    String file3client;
-    String file1server;
+    
+    String clientFile;
+    String clientDir;
+    String serverDir;
+    String serverFile;
 
     public void Setup() {
       
       Tester.Setup();
       
-      file1client = Tester.accountA.Directory + "file1";
-      file2client = Tester.accountA.Directory + "file2";
-      dir1client = Tester.accountA.Directory + "dir1";
-      file3client = dir1client + Path.DirectorySeparatorChar + "file3";
-      
-      file1server = Tester.baseServerUserDir + "file1";
-      
+      clientDir = Tester.accountA.Directory + "clientDir";
+      clientFile = clientDir + "/clientFile";
+      serverDir = Tester.accountA.Directory + "serverDir";
+      serverFile = serverDir + "/serverFile";
+
     }
     
     public bool SleepAndTestClientToServer() {
@@ -38,18 +35,23 @@ namespace mybox
     
       Setup();
       
-      File.AppendAllText(file1server, "abc");
+      Directory.CreateDirectory(serverDir);
+      File.AppendAllText(serverFile, "abc");
     
       Tester.StartProcesses();
-    
-//      Directory.CreateDirectory(dir1client);
-      File.AppendAllText(file3client, "abc");
-      //File.AppendAllText(file1client, "abc");
       
+      Directory.CreateDirectory(clientDir);
+      File.AppendAllText(clientFile, "asdasdas");
+
       if (SleepAndTestClientToServer())
         Console.WriteLine("                 ===== TEST PASSED ====");
       else
         Console.WriteLine("                 ===== TEST FAILED ====");
+        
+      ClientFile topA = Tester.clientIndexA.GetFile("/");
+      ClientFile topB = Tester.clientIndexB.GetFile("/");
+      
+      Console.WriteLine("Comparing top checksums = {0} vs {1}", topA.Checksum, topB.Checksum);
     }
     
     public static void Main (string[] args) {

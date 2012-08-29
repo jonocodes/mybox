@@ -98,7 +98,7 @@ namespace mybox {
         return dbLocation;
       }
     }
-
+/*
     /// <summary>
     /// Open the connection. Be careful with this. It should be used only after CloseDB was called.
     /// </summary>
@@ -116,7 +116,7 @@ namespace mybox {
       while (dbConnection.State == ConnectionState.Open) 
         System.Threading.Thread.Sleep(500);
     }
-
+*/
     public FileIndex(String absPath) {
 
       dbLocation = absPath;
@@ -195,13 +195,15 @@ namespace mybox {
       DbReader reader = cmd.ExecuteReader();
 
       if (reader.Read()) {
-        ClientFile ClientFile = new ClientFile(path,
+        return new ClientFile(path,
                    (FileType)Enum.Parse(typeof(FileType),reader["type"].ToString(), true),
                    long.Parse(reader["size"].ToString()),
                    reader["checksum"].ToString(),
                    int.Parse(reader["modtime"].ToString()) );
       }
       return null;
+      
+      // TODO: reader.close(); ???
     }
 
     /// <summary>

@@ -89,6 +89,7 @@ namespace mybox
     
     List<List<string>> GetDirListSerializable(ServerUser user, String path);
 
+    string GetRootSerialized(int userId)
 
     void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId);
 

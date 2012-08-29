@@ -121,6 +121,23 @@ CREATE TABLE IF NOT EXISTS `users` (
       return (Common.Sha256Hash(pwordOrig) == pwordHashed);
     }
     
+    
+    public string GetRootSerialized(int userId) {
+    
+      DbCommand cmd = dbConnection.CreateCommand();
+      cmd.CommandText = String.Format("SELECT * FROM files WHERE path='{0}'", userId);
+      DbReader reader = cmd.ExecuteReader();
+
+      string result = string.Empty;
+
+      if (reader.Read())
+        result = long.Parse(reader["size"].ToString() + "\t" + reader["checksum"].ToString());
+      
+      reader.Close();
+      
+      return result;
+    }
+    
     /// <summary>
     /// Recalculate and set checksums for all directories in the list of updated directories.
     ///  Typically used after a sinc is finished.
@@ -140,7 +157,7 @@ CREATE TABLE IF NOT EXISTS `users` (
       recalcDirChecksum(updatedDirectories, parentId);
     }
     
-    private KeyValuePair<long, string> recalcDirChecksum(HashSet<int> updatedDirectories, int parentId) {
+    private Tuple<long, string> recalcDirChecksum(HashSet<int> updatedDirectories, int parentId) {
     
       Console.WriteLine("recalcChecksum parentID " + parentId);
     
@@ -170,10 +187,10 @@ CREATE TABLE IF NOT EXISTS `users` (
         if (thisItem.Value.Type == FileType.DIR && updatedDirectories.Contains(thisItem.Key)) {
         
           // delete item from updateDirectories?
-          KeyValuePair<long, string> dirResult = recalcDirChecksum(updatedDirectories, thisItem.Key);
-          totalSize += dirResult.Key;
+          Tuple<long, string> dirResult = recalcDirChecksum(updatedDirectories, thisItem.Key);
+          totalSize += dirResult.Item1;
         
-          toChecksum += thisItem.Value.Path + dirResult.Value + FileType.DIR.ToString();
+          toChecksum += thisItem.Value.Path + dirResult.Item2 + FileType.DIR.ToString();
         } else {
         
           totalSize += thisItem.Value.Size;
@@ -192,26 +209,8 @@ CREATE TABLE IF NOT EXISTS `users` (
                                           totalSize, cs, parentId );
       command.ExecuteNonQuery();
       
-      return new KeyValuePair<long, string>(totalSize, cs);
+      return new Tuple<long, string>(totalSize, cs);
     }
-    
-    /*
-    /// <summary>
-    /// Rebuilds the files table by checksumming all the files in the directory
-    /// </summary>
-    public void RebuildFilesTable() {
-    
-      // remove all entries
-      DbCommand command = dbConnection.CreateCommand();
-      command.CommandText = "DELETE FROM files";
-      command.ExecuteNonQuery();
-      
-      // rebuild the table from filesystem entries one user directory at a time
-      String[] children = Directory.GetDirectories(baseDataDir);
-      foreach (string child in children)
-        rebuildFilesTableDir(child, -1);
-    }
-    */
     
     public void RebuildFileEntries(string absParentDir, string userId) {
     
@@ -309,6 +308,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 
       return new KeyValuePair<long, string>(totalSize, cs);
     }
+    
     
     /// <summary>
     ///  Gets the file list in a manner that is easy to serialize and send. 

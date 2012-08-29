@@ -25,6 +25,9 @@ namespace mybox
     public static ClientAccount accountB;
     public static String clientConfigDirB;
     
+    public static FileIndex clientIndexA;
+    public static FileIndex clientIndexB;
+    
     public static Thread serverThread;
     public static Thread clientThreadA;
     public static Thread clientThreadB;
@@ -74,7 +77,7 @@ namespace mybox
           if (dir1map[relPath] != checksum)
             return false;
             
-          Console.WriteLine("list1 -> {0} ({1})", relPath, checksum);
+          Console.WriteLine("list2 -> {0} ({1})", relPath, checksum);
         }
       }
 
@@ -98,13 +101,14 @@ namespace mybox
       if (clientThreadA == null) {
         clientThreadA = new Thread((ThreadStart)delegate {  new Client(clientConfigDirA);  });
         clientThreadA.Start();
+        Thread.Sleep(700);
       }
-      /*
+      
       if (clientThreadB == null) {
         clientThreadB = new Thread((ThreadStart)delegate {  new Client(clientConfigDirB);  });
         clientThreadB.Start();
       }
-      */
+      
     }
     
     public static void Setup() {
@@ -154,8 +158,10 @@ namespace mybox
       
       Directory.CreateDirectory(baseTestDir);
       Directory.CreateDirectory(baseServerDataDir);
+      
       Directory.CreateDirectory(clientConfigDirA);
       Directory.CreateDirectory(accountA.Directory);
+      
       Directory.CreateDirectory(clientConfigDirB);
       Directory.CreateDirectory(accountB.Directory);
       
@@ -164,22 +170,26 @@ namespace mybox
       
       // set up two client accounts
       
-      ClientServerConnection cscDummy = new ClientServerConnection();
+      ClientServerConnection cscDummyA = new ClientServerConnection();
+      ClientServerConnection cscDummyB = new ClientServerConnection();
         
       try {
-        cscDummy.SetConfigDir(clientConfigDirA);
+        cscDummyA.SetConfigDir(clientConfigDirA);
       } catch (Exception) {
         // toss config file not found exception since it is expected for a new setup
       }
-      /*
+      
       try {
-        ClientServerConnection.SetConfigDir(clientConfigDirB);// woll mess everything since it is static
+        cscDummyB.SetConfigDir(clientConfigDirB);
       } catch (Exception) {
         // toss config file not found exception since it is expected for a new setup
       }
-      */
-      ClientSetup.WriteConfig(accountA, cscDummy.ConfigFile);
-      //ClientSetup.WriteConfig(accountB);
+      
+      ClientSetup.WriteConfig(accountA, cscDummyA.ConfigFile);
+      ClientSetup.WriteConfig(accountB, cscDummyB.ConfigFile);
+      
+      clientIndexA = new FileIndex(clientConfigDirA + "client.db");
+      clientIndexB = new FileIndex(clientConfigDirB + "client.db");
       
       // manually insert account into test database
       // needed for mysql but not sqlite
@@ -197,7 +207,6 @@ namespace mybox
       }
       */
       // TODO: manually insert user with known ID here
-      
       
       setupRun = true;
     }

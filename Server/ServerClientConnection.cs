@@ -64,7 +64,6 @@ namespace mybox {
     /// Listen to the client via threadless async callback
     /// </summary>
     private void listenToClient() {
-      //socket.Blocking = true;
       socket.BeginReceive(inputSignalBuffer, 0, 1, SocketFlags.None, new AsyncCallback(onReceiveSignalComplete), null);
     }
 
@@ -184,7 +183,7 @@ namespace mybox {
           
           break;
           
-        case Signal.syncCatchupFinished:
+        case Signal.syncFinishedDoNotSpan:
           
           server.DB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
           updatedDirectories.Clear();
@@ -257,7 +256,7 @@ namespace mybox {
 
           String jsonOutStringFiles = jsonSerializer.Serialize(fileListToSerialize);  //JsonConvert.SerializeObject(fileListToSerialize);
 
-          Server.WriteMessage("sending json file list: " + jsonOutStringFiles);
+          Server.WriteMessage("sending json file list string: (" + jsonOutStringFiles + ")");
 
           try {
 //            sendCommandToClient(Signal.requestServerFileList_response);
@@ -321,52 +320,6 @@ namespace mybox {
       }
 
     }
-
-//    /// <summary>
-//    /// Send catchup operation to the client based on the original inputOperation
-//    /// </summary>
-//    /// <param name="inputOperation">the initial operation for which to determine an output operation</param>
-//    /// <param name="arg">additional arguments for the input/output operation</param>
-//    public void SendCatchup(Signal inputOperation, String arg) {
-//
-//      if (inputOperation == Signal.c2s) {
-//        try {
-//          Server.WriteMessage("catchup s2c to client (" + handle + "): " + arg);
-//          if (File.Exists(dataDir + arg)) {
-//            sendCommandToClient(Signal.s2c);
-//            Common.SendFile(arg, socket, dataDir);
-//          }
-//        }
-//        catch (Exception e) {
-//          Server.WriteMessage("catchup s2c to client failed: " + e.Message);
-//        }
-//      }
-//      else if (inputOperation == Signal.deleteOnServer) {  // handles files and directories?
-//        try {
-//          Server.WriteMessage("catchup delete to client (" + handle + "): " + arg);
-//          sendCommandToClient(Signal.deleteOnClient);
-//          Common.SendString(socket, arg);
-//        }
-//        catch (Exception e) {
-//          Server.WriteMessage("catchup delete to client failed: " + e.Message);
-//        }
-//      }
-//      else if (inputOperation == Signal.createDirectoryOnServer) {
-//        try {
-//          Server.WriteMessage("catchup createDirectoryOnClient (" + handle + "): " + arg);
-//          sendCommandToClient(Signal.createDirectoryOnClient);
-//          Common.SendString(socket, arg);
-//        }
-//        catch (Exception e) {
-//          Server.WriteMessage("catchup createDirectoryOnClient failed: " + e.Message);
-//        }
-//      }
-//      else {
-//        Server.WriteMessage("unknown command: " + inputOperation);
-//      }
-//
-//    }
-
 
   }
 }

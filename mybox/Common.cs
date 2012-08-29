@@ -55,19 +55,10 @@ namespace mybox {
     no = 17,
     sucess = 18,
     failure = 19,
-    syncCatchupFinished = 20,
+    syncFinishedDoNotSpan = 20,
     clientWantsToSync = 21,
     serverReadyToSync = 22
   }
-
-//  // only used on the client side database
-//  public enum FileSyncStatus /*: char*/ {
-////    UPTODATE /*='u'*/,
-//    SENDTOSERVER /*='s'*/,  // means the local file was updated and needs to be uploaded
-//    DELETEONSERVER/*='d'*/,
-////    UPDATELOCALCHECKSUM,
-//    //CREATEDIRONSERVER='c'
-//  }
   
   public enum FileType {
     FILE ='f',
@@ -107,28 +98,6 @@ namespace mybox {
       : base(path, type, size, checksum) {
         
       this.Modtime = modtime;
-    }
-  
-    public static ClientFile FromFileSystem(String baseDir, String relPath) {
-
-      String absPath = baseDir + "/" + relPath;
-      
-      FileInfo fi = new FileInfo(absPath);
-      int modtime = Common.DateTimeToUnixTimestamp(fi.LastWriteTimeUtc);
-      
-      FileType type;
-      long size=0;
-      
-      if (Directory.Exists(absPath)) {
-        type = FileType.DIR;
-      } else {// bad check
-        type = FileType.FILE;
-        size = fi.Length;
-      }
-      
-      // set a bogus checksum. this will be set elsewhere
-      
-      return new ClientFile(relPath, type, size, "empty" /*Common.Md5Hash(String.Empty)*/, modtime);
     }
 
   }
@@ -347,50 +316,6 @@ namespace mybox {
     public static String FileChecksumToString(String absPath) {
       return BitConverter.ToString(FileChecksumToBytes(absPath)).Replace("-", String.Empty).ToLower();
     }
-
-/*
-    /// <summary>
-    /// Gets a recursive listing of files from a directory
-    /// </summary>
-    /// <param name="baseDir"></param>
-    /// <returns></returns>
-    public static List<MyFile> GetFilesRecursive (string baseDir) {
-
-      List<MyFile> result = new List<MyFile>();
-
-      Stack<string> stack = new Stack<string> ();
-
-      stack.Push (baseDir);
-
-      while (stack.Count > 0) {
-
-        string dir = stack.Pop();
-
-        try {
-
-          string[] files = Directory.GetFiles(dir, "*.*");
-
-          foreach (string absPath in files) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'f',
-                                  GetModTime(absPath), new FileInfo(absPath).Length,"0"));
-          }
-
-          string[] dirs = Directory.GetDirectories(dir);
-
-          foreach (string absPath in dirs) {
-            result.Add(new MyFile(absPath.Replace(baseDir, ""), 'd', GetModTime(absPath), 0, "0"));
-            stack.Push(absPath);
-          }
-        }
-        catch {
-          // Could not open the directory
-        }
-      }
-      return result;
-    }
-*/
-
-
 
     /// <summary>
     /// Create a directory on the local filesystem if it does not exist

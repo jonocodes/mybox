@@ -49,5 +49,9 @@
       <Project>{E44A01C4-A08B-44BC-B109-F835DD86F62A}</Project>
       <Name>Tester</Name>
     </ProjectReference>
+    <ProjectReference Include="..\mybox\mybox.csproj">
+      <Project>{B0ADD35F-65DE-497D-AB20-ECC8A6FF8582}</Project>
+      <Name>mybox</Name>
+    </ProjectReference>
   </ItemGroup>
 </Project>
