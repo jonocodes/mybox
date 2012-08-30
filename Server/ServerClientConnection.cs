@@ -176,7 +176,7 @@ namespace mybox {
           
         case Signal.syncFinished:
           
-          server.DB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
+          server.DB.RecalcDirChecksums(updatedDirectories, User.id);
           updatedDirectories.Clear();
           
           server.TellClientsToSync(handle, User.id);
@@ -185,7 +185,7 @@ namespace mybox {
           
         case Signal.syncFinishedDoNotSpan:
           
-          server.DB.RecalcDirChecksums(updatedDirectories, int.Parse(User.id));
+          server.DB.RecalcDirChecksums(updatedDirectories, User.id);
           updatedDirectories.Clear();
           
           break;
@@ -199,11 +199,9 @@ namespace mybox {
           String relPath = Common.ReceiveString(socket);
           if (File.Exists(dataDir + relPath)) {
           
-//            sendCommandToClient(Signal.s2c);
-            Common.SendFile(relPath, socket, dataDir); // TODO: check return value
+            MyFile file = server.DB.GetFile(User.id, relPath);
+            Common.SendFile(file, socket, dataDir); // TODO: check return value
           
-            //outQueue.Enqueue(relPath);
-            //processOutQueue();
           }
           break;
 
@@ -263,7 +261,7 @@ namespace mybox {
             Common.SendString(socket, jsonOutStringFiles);
           }
           catch (Exception e) {
-            Server.WriteMessage("Error during " + Signal.requestServerFileList_response + e.Message);
+            Server.WriteMessage("Error during " + Signal.requestServerFileList + e.Message);
             Common.ExitError();
           }
 

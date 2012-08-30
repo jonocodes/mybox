@@ -89,9 +89,10 @@ namespace mybox
     
     List<List<string>> GetDirListSerializable(ServerUser user, String path);
 
-    string GetRootSerialized(int userId)
+    string GetRootSerialized(string userId);
+    MyFile GetFile(string userId, string path);
 
-    void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId);
+    void RecalcDirChecksums(HashSet<int> updatedDirectories, string userId);
 
     /// <summary>
     /// Update or insert a new entry for the file into the database

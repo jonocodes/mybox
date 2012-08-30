@@ -31,27 +31,27 @@ namespace mybox
       return Tester.AreDirectoriesEqual(Tester.accountA.Directory, Tester.baseServerUserDir);
     }
     
+    public bool SleepAndTestClients() {
+      Thread.Sleep(4500);
+      return Tester.TestClientsInSync();
+    }
+    
     public ManualTester() {
     
       Setup();
       
-      Directory.CreateDirectory(serverDir);
-      File.AppendAllText(serverFile, "abc");
+//      Directory.CreateDirectory(serverDir);
+//      File.AppendAllText(serverFile, "abc");
     
       Tester.StartProcesses();
       
       Directory.CreateDirectory(clientDir);
       File.AppendAllText(clientFile, "asdasdas");
 
-      if (SleepAndTestClientToServer())
+      if (SleepAndTestClients())
         Console.WriteLine("                 ===== TEST PASSED ====");
       else
         Console.WriteLine("                 ===== TEST FAILED ====");
-        
-      ClientFile topA = Tester.clientIndexA.GetFile("/");
-      ClientFile topB = Tester.clientIndexB.GetFile("/");
-      
-      Console.WriteLine("Comparing top checksums = {0} vs {1}", topA.Checksum, topB.Checksum);
     }
     
     public static void Main (string[] args) {

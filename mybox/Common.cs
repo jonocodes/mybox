@@ -88,6 +88,21 @@ namespace mybox {
     public override string ToString() {
       return this.Path;
     }
+    /*
+    public override bool Equals(object obj) {
+      if (obj == null)
+        return false;
+        
+      MyFile b = (MyFile)obj;
+      
+      return (Checksum == b.Checksum && Size == b.Size && Type == b.Type);
+    }
+    */
+    
+    public bool Equals(MyFile b) {     
+      return (Checksum == b.Checksum && Size == b.Size && Type == b.Type);
+    }    
+    
   }
   
   public class ClientFile : MyFile {
@@ -284,7 +299,7 @@ namespace mybox {
     public static String Md5Hash(String input) {
       MD5 md5 = new MD5CryptoServiceProvider();
       String result = BitConverter.ToString (md5.ComputeHash (System.Text.Encoding.ASCII.GetBytes (input)));
-      return result.Replace ("-", String.Empty).ToLower();
+      return result.Replace("-", String.Empty).ToLower();
     }
   
     /// <summary>
@@ -315,6 +330,19 @@ namespace mybox {
 
     public static String FileChecksumToString(String absPath) {
       return BitConverter.ToString(FileChecksumToBytes(absPath)).Replace("-", String.Empty).ToLower();
+    }
+
+    public static byte[] ConvertHexStringToByteArray(string hexString)
+    {
+      if (hexString.Length % 2 != 0)
+        throw new ArgumentException(String.Format(System.Globalization.CultureInfo.InvariantCulture, "The binary key cannot have an odd number of digits: {0}", hexString));
+      
+      byte[] HexAsBytes = new byte[hexString.Length / 2];
+      for (int index = 0; index < HexAsBytes.Length; index++)
+          HexAsBytes[index] = byte.Parse(hexString.Substring(index * 2, 2),
+            System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+      
+      return HexAsBytes; 
     }
 
     /// <summary>
@@ -417,45 +445,34 @@ namespace mybox {
     /// <param name="socket"></param>
     /// <param name="baseDir">the base directory for which to append the relPath to</param>
     /// <returns></returns>
-    public static bool SendFile(String relPath, Socket socket, String baseDir) {
+    public static bool SendFile(MyFile file, Socket socket, String baseDir) {
 
       try {
-        String fullPath = baseDir + relPath;
+        String fullPath = baseDir + file.Path;
 
-        byte[] fileName = Encoding.UTF8.GetBytes(relPath); //file name
+        byte[] fileName = Encoding.UTF8.GetBytes(file.Path); //file name
         byte[] fileNameLen = BitConverter.GetBytes((Int16)(fileName.Length)); //length of file name
         byte[] fileData = File.ReadAllBytes(fullPath); //file
-        // TODO: fileData is not indexed by a long so can it deal with large files?
+        // TODO: fileData is not indexed by a 'long' so can it deal with large files?
         byte[] fileDataLen = BitConverter.GetBytes(fileData.Length); // file length
         
-        // temporarially calc checksum here, though should be done higher up
-        byte[] checksum = FileChecksumToBytes(fullPath);
+        byte[] checksum = ConvertHexStringToByteArray(file.Checksum);
 
-        Console.WriteLine("Sending file " + relPath);
+        Console.WriteLine("Sending file " + file.Path + "  size "+ fileData.Length);
 
         socket.Send(fileNameLen);//2
         socket.Send(fileName);
         
-        socket.Send(checksum);//16 bytes, or 32 characters?
-        socket.Send(fileDataLen);//4, TODO: set this to 8 bits for files larger then 4GB ?
+        socket.Send(checksum);//16 bytes
+        socket.Send(fileDataLen);//4, TODO: set this to 8 bits for files larger then 4GB
         socket.Send(fileData);
 
-
-        /*
-        byte[] statusBuffer = new byte[1];
-        socket.Receive(statusBuffer);
-        
-        if (Common.BufferToSignal(statusBuffer) == Signal.sucess)
-          return true;
-          */
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);
       }
       
       return CheckSuccess(socket);
-
-//      return false;
     }
 
 
@@ -467,10 +484,10 @@ namespace mybox {
     /// <returns></returns>
     public static MyFile ReceiveFile(Socket socket, string baseDir) {
 
-      byte[] buffer = new byte[buf_size];
-
       MyFile myFile = null;
 
+      byte[] buffer = new byte[buf_size];
+      
       try {
         // receive order: name length, name, checksum, data length, data
         
@@ -496,6 +513,9 @@ namespace mybox {
         Int32 fileLength = BitConverter.ToInt32(buffer, 0);
 
         int fileBytesRead = 0;
+        
+//        buf_size = fileLength;
+//        buffer = new byte[buf_size];
 
         MD5 md5 = MD5.Create();
 
@@ -507,18 +527,29 @@ namespace mybox {
               cs.Write(buffer, 0, buf_size);
             }
 
+            // TODO: something fishy going on here that causes some files to not come in right
+            //  might be related to bits getting messed up elsewhere like in catup sync bit?
+
             if (fileBytesRead < fileLength) {
-              socket.Receive(buffer, fileLength - fileBytesRead, 0);  // make sure this reads to the end
+              int lastbits = socket.Receive(buffer, fileLength - fileBytesRead, 0);  // make sure this reads to the end
               cs.Write(buffer, 0, fileLength - fileBytesRead);
+              fileBytesRead += lastbits;
             }
+            
+            Console.WriteLine("ended with filestream length {0}", fs.Length);
           }
         }
 
         String calculatedChecksum = BitConverter.ToString(md5.Hash).Replace("-", String.Empty).ToLower();
 
         // network fault tolerance, varify checksum before moving file from temp to dir
-        Console.WriteLine("  calculated checksum: " + calculatedChecksum);
-
+        Console.WriteLine("  calculated checksum: {0}  orig size: {1}  received: {2}", calculatedChecksum, fileLength, fileBytesRead);
+/*
+        if (calculatedChecksum != checksumString) {
+          Console.WriteLine("WARNING streaming checksum did not match. Recalculating on filesystem.");
+          calculatedChecksum = FileChecksumToString(tempLocation);
+        }
+*/
         if (calculatedChecksum == checksumString) {
           String finalLocation = baseDir + relPath;
           
@@ -528,15 +559,17 @@ namespace mybox {
           }
           
           File.Move(tempLocation, finalLocation);
-          //File.SetLastWriteTimeUtc(finalLocation, timestamp);
+          
           Console.WriteLine("  file sucessfully saved to: " + finalLocation);
 
           socket.Send(Common.SignalToBuffer(Signal.sucess));
 
           myFile = new MyFile(relPath, FileType.FILE, fileLength, checksumString);
         }
-        else
-          throw new Exception("Received file checksum did not match");
+        else {
+          Console.WriteLine("checking received file size: " + new FileInfo(tempLocation).Length);
+          throw new Exception("   !!!  Received file checksum did not match !!! ");
+        }
       }
       catch (Exception e) {
         Console.WriteLine("Operation failed: " + e.Message);

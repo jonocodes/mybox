@@ -271,6 +271,8 @@ namespace mybox
         
         else if (updateMap.ContainsKey(remoteFile.Path)) {
         
+          // TODO: check size as well as checksum ?
+          
           if (updateMap[remoteFile.Path].Checksum != remoteFile.Checksum) {
             writeMessage("checksums differ: " + remoteFile.Path);
             
@@ -370,10 +372,10 @@ namespace mybox
         
       } else if (remoteFile.Type != FileType.DIR && localFile.Type != FileType.DIR) {
       
-        if (previousChecksum != string.Empty && previousChecksum != remoteFile.Checksum)
-          onFileConflict(remoteFile, localFile);
-        else if (previousChecksum == localFile.Checksum)// remote changed, download file from server
+        if (previousChecksum != string.Empty && previousChecksum == localFile.Checksum)// remote changed, download file from server
           onRemoteChange(parentDir, remoteFile);
+        else if (previousChecksum != string.Empty && previousChecksum != remoteFile.Checksum)
+          onFileConflict(remoteFile, localFile);
         else // local changed, upload file to server
           onLocalChange(localFile);        
     
@@ -460,6 +462,9 @@ namespace mybox
       
         fileIndex.Update(clientFile);
         addToUpdate(parentDir, clientFile);
+        
+        if (!dirsToUpdate.Contains(parentDir))
+          dirsToUpdate.Add(parentDir);
       }
     }
 
@@ -471,7 +476,7 @@ namespace mybox
     /// </param>
     private void uploadFile(ClientFile localUpdatedFile) {
       socket.Send(Common.SignalToBuffer(Signal.c2s));
-      if (Common.SendFile(localUpdatedFile.Path, socket, absDataDir))
+      if (Common.SendFile(localUpdatedFile, socket, absDataDir))
         fileIndex.Update(localUpdatedFile);
     }
     

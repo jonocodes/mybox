@@ -35,6 +35,31 @@ namespace mybox
     public static String serverDb;
     public static bool setupRun = false;
     
+    public static bool TestClientsInSync() {
+      
+      ClientFile rootA = clientIndexA.GetFile("/");
+      ClientFile rootB = clientIndexB.GetFile("/");
+      
+      String[] listA = Directory.GetFiles(accountA.Directory, "*", SearchOption.AllDirectories);
+      String[] listB = Directory.GetFiles(accountB.Directory, "*", SearchOption.AllDirectories);
+      
+      Console.WriteLine("Comparing client directories. File count {0} vs {1}", listA.Length, listB.Length);
+      Console.WriteLine("Comparing roots [{0}] vs [{1}]", rootA.Checksum, rootB.Checksum);
+      
+      if (!rootA.Equals(rootB)) {
+        Console.WriteLine("Roots do not match");
+        return false;
+      }
+      
+      foreach (String fullPath in listA)
+        Console.WriteLine(fullPath);
+      
+      if (listA.Length != listB.Length)
+        return false;
+        
+      return true;
+    }
+    
     public static bool AreDirectoriesEqual(string dir1, string dir2) {
       
       Console.WriteLine("comparing " + dir1 + " and " + dir2);
@@ -73,7 +98,7 @@ namespace mybox
           
           if (File.Exists(fullPath))
             checksum = Common.FileChecksumToString(fullPath);
-           
+          
           if (dir1map[relPath] != checksum)
             return false;
             
@@ -130,9 +155,11 @@ namespace mybox
       baseServerUserDir = baseServerDataDir + "1" + Path.DirectorySeparatorChar;
       serverConfigFile = baseTestDir + "server.ini";
       
+      int port = 4441;   // use a non-default port to avoid conflicts with a running server
+      
       accountA = new ClientAccount();
       accountA.ServerName = "localhost";
-      accountA.ServerPort = Common.DefaultCommunicationPort;
+      accountA.ServerPort = port;
       accountA.User = "test";
       accountA.Password = "badpassword";
       accountA.Directory = baseTestDir + "clientDataA" + Path.DirectorySeparatorChar;
@@ -141,7 +168,7 @@ namespace mybox
       
       accountB = new ClientAccount();
       accountB.ServerName = accountA.ServerName;
-      accountB.ServerPort = accountA.ServerPort;
+      accountB.ServerPort = port;
       accountB.User = accountA.User;
       accountB.Password = accountA.Password;
       accountB.Directory = baseTestDir + "clientDataB" + Path.DirectorySeparatorChar;
@@ -166,13 +193,13 @@ namespace mybox
       Directory.CreateDirectory(accountB.Directory);
       
       // server setup
-      ServerSetup.WriteConfig(serverConfigFile, Common.DefaultCommunicationPort, typeof(SqliteDB), serverDb, baseServerDataDir);
+      ServerSetup.WriteConfig(serverConfigFile, port, typeof(SqliteDB), serverDb, baseServerDataDir);
       
       // set up two client accounts
       
       ClientServerConnection cscDummyA = new ClientServerConnection();
       ClientServerConnection cscDummyB = new ClientServerConnection();
-        
+      
       try {
         cscDummyA.SetConfigDir(clientConfigDirA);
       } catch (Exception) {

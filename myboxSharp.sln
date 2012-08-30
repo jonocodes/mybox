@@ -120,7 +120,7 @@ Global
 		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
-		StartupItem = ManualTester\ManualTester.csproj
+		StartupItem = Server\Server.csproj
 		Policies = $0
 		$0.TextStylePolicy = $1
 		$1.FileWidth = 120

@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     }
     
     
-    public string GetRootSerialized(int userId) {
+    public string GetRootSerialized(string userId) {
     
       DbCommand cmd = dbConnection.CreateCommand();
       cmd.CommandText = String.Format("SELECT * FROM files WHERE path='{0}'", userId);
@@ -131,7 +131,27 @@ CREATE TABLE IF NOT EXISTS `users` (
       string result = string.Empty;
 
       if (reader.Read())
-        result = long.Parse(reader["size"].ToString() + "\t" + reader["checksum"].ToString());
+        result = reader["size"].ToString() + "\t" + reader["checksum"].ToString();
+      
+      reader.Close();
+      
+      return result;
+    }
+    
+    public MyFile GetFile(string userId, string path) {
+    
+      DbCommand cmd = dbConnection.CreateCommand();
+      cmd.CommandText = String.Format("SELECT * FROM files WHERE path='{0}'", userId + path);
+      DbReader reader = cmd.ExecuteReader();
+
+      MyFile result = null;
+
+      if (reader.Read())
+        result =  new MyFile(path,
+                   (FileType)Enum.Parse(typeof(FileType),
+                   reader["type"].ToString(), true),
+                   long.Parse(reader["size"].ToString()),
+                   reader["checksum"].ToString());
       
       reader.Close();
       
@@ -148,7 +168,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     /// <param name='userId'>
     /// User identifier.
     /// </param>
-    public void RecalcDirChecksums(HashSet<int> updatedDirectories, int userId) {
+    public void RecalcDirChecksums(HashSet<int> updatedDirectories, string userId) {
     
       DbCommand command = dbConnection.CreateCommand();
       command.CommandText = String.Format("SELECT id FROM files WHERE user='{0}' AND parent=-1", userId);
@@ -159,7 +179,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     
     private Tuple<long, string> recalcDirChecksum(HashSet<int> updatedDirectories, int parentId) {
     
-      Console.WriteLine("recalcChecksum parentID " + parentId);
+      Console.WriteLine("recalcChecksum parentID " + parentId + " updateDirectories: " + updatedDirectories.Count);
     
       long totalSize = 0;
       string toChecksum = string.Empty;
@@ -168,13 +188,13 @@ CREATE TABLE IF NOT EXISTS `users` (
       command.CommandText = String.Format("SELECT * FROM files WHERE parent='{0}' ORDER BY type, path", parentId);
       DbReader reader = command.ExecuteReader();
       
-      List<KeyValuePair<int, MyFile>> dirItems = new List<KeyValuePair<int, MyFile>>();
+      List<Tuple<int, MyFile>> dirItems = new List<Tuple<int, MyFile>>();
       
       while (reader.Read()) {
 
         string pathToChecksum = Regex.Replace(reader["path"].ToString(), "^[0-9]+/?", "/");
 
-        dirItems.Add(new KeyValuePair<int, MyFile>(int.Parse(reader["id"].ToString()), new MyFile(pathToChecksum,
+        dirItems.Add(new Tuple<int, MyFile>(int.Parse(reader["id"].ToString()), new MyFile(pathToChecksum,
           (FileType)Enum.Parse(typeof(FileType),(string)(reader["type"])),
           long.Parse(reader["size"].ToString()), reader["checksum"].ToString())));
       }
@@ -182,19 +202,19 @@ CREATE TABLE IF NOT EXISTS `users` (
       reader.Close();
       
       
-      foreach (KeyValuePair<int, MyFile> thisItem in dirItems) {
+      foreach (Tuple<int, MyFile> thisItem in dirItems) {
       
-        if (thisItem.Value.Type == FileType.DIR && updatedDirectories.Contains(thisItem.Key)) {
+        if (thisItem.Item2.Type == FileType.DIR && updatedDirectories.Contains(thisItem.Item1)) {
         
           // delete item from updateDirectories?
-          Tuple<long, string> dirResult = recalcDirChecksum(updatedDirectories, thisItem.Key);
+          Tuple<long, string> dirResult = recalcDirChecksum(updatedDirectories, thisItem.Item1);
           totalSize += dirResult.Item1;
         
-          toChecksum += thisItem.Value.Path + dirResult.Item2 + FileType.DIR.ToString();
+          toChecksum += thisItem.Item2.Path + dirResult.Item2 + FileType.DIR.ToString();
         } else {
         
-          totalSize += thisItem.Value.Size;
-          toChecksum += thisItem.Value.Path + thisItem.Value.Checksum + thisItem.Value.Type.ToString();
+          totalSize += thisItem.Item2.Size;
+          toChecksum += thisItem.Item2.Path + thisItem.Item2.Checksum + thisItem.Item2.Type.ToString();
         
         }
       
