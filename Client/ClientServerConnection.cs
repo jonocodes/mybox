@@ -194,20 +194,28 @@ namespace mybox {
 
     #endregion
 
-    public ClientServerConnection() {
-      setStatus(ClientStatus.DISCONNECTED);
+    public ClientServerConnection(String configDir) {
+      SetConfigDir(configDir);
+      LoadConfig(configFile);
     }
 
-
     /// <summary>
-    /// Connect to the server and perform a full sync
+    /// Set the config directory
     /// </summary>
-    public void Start() {
-      attemptConnection(5);
+    /// <param name="absPath"></param>
+    public void SetConfigDir(String absPath) {
 
-      writeMessage("Client ready. Startup sync.");
-      
-      sync();
+      if (!Directory.Exists(absPath))
+        throw new Exception("Specified config directory does not exist: " + absPath);
+
+      configFile = absPath + configFileName;
+
+      if (!File.Exists(configFile))
+        throw new Exception("Config file " + configFile + " not found");
+
+      logFile = absPath + logFileName;
+
+      fileIndex = new FileIndex(absPath + indexFileName);
     }
     
     /// <summary>
@@ -250,7 +258,29 @@ namespace mybox {
 
       absDataDir = Common.EndDirWithoutSlash(account.Directory);
     }
+    
+    public static void WriteConfig(ClientAccount account, String configDir) {
+    
+      // TODO: handle existing file
 
+      String configFile = configDir + configFileName;
+      
+      if (!Directory.Exists(configDir)) 
+        if (!Common.CreateLocalDirectory(configDir)) 
+          throw new Exception("Unable to create directory " + configDir);
+
+      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
+        file.WriteLine("[settings]");
+        file.WriteLine(ClientServerConnection.CONFIG_SERVER + "=" + account.ServerName);
+        file.WriteLine(ClientServerConnection.CONFIG_PORT + "=" + account.ServerPort.ToString());
+        file.WriteLine(ClientServerConnection.CONFIG_USER + "=" + account.User);
+//        file.WriteLine("salt=" + account.Salt);
+        file.WriteLine(ClientServerConnection.CONFIG_PASSWORD + "=" + account.Password);
+        file.WriteLine(ClientServerConnection.CONFIG_DIR + "=" + account.Directory);
+      }
+
+    }
+    
 
     //public void stop() {
     //  disableDirListener();
@@ -268,12 +298,24 @@ namespace mybox {
     //}
 
 
+    /// <summary>
+    /// Connect to the server and perform a full sync
+    /// </summary>
+    public void Start() {
+      attemptConnection();
+
+      writeMessage("Client ready. Startup sync.");
+      
+      sync();
+    }
 
     /// <summary>
     /// Try to connect to the server and attach an account
     /// </summary>
     /// <param name="pollInterval">number of seconds between connection retry</param>
-    private void attemptConnection(int pollInterval) {
+    private bool attemptConnection(int pollInterval = 5) {
+
+      bool authenticated = false;
 
       if (account.ServerName == null) {
         throw new Exception("Client not configured");
@@ -317,15 +359,16 @@ namespace mybox {
         //socket.Close();
         Stop();
       }
+      else if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
+        writeMessage("Client and Server Mybox versions do not match");
+      }
       else {
-        if (Common.AppVersion != jsonMap["serverMyboxVersion"]) {
-          writeMessage("Client and Server Mybox versions do not match");
-        }
+        authenticated = true;
+        dirSyncer = new DirSyncer(absDataDir, fileIndex, socket);
+        setStatus(ClientStatus.READY);
       }
       
-      dirSyncer = new DirSyncer(absDataDir, fileIndex, socket);
-      
-      setStatus(ClientStatus.READY);
+      return authenticated;
     }
 
 
@@ -396,7 +439,7 @@ namespace mybox {
     /// Initiates the client mode for just connecting to get the account
     /// </summary>
     /// <returns></returns>
-    public void StartGetAccountMode(ClientAccount account) {
+    public bool StartGetAccountMode(ClientAccount account) {
 
       if (account.ServerName == null) {
         throw new Exception("Client not configured");
@@ -404,7 +447,7 @@ namespace mybox {
 
       this.account = account;
 
-      attemptConnection(5);
+      return attemptConnection();
     }
     
     /// <summary>
@@ -442,25 +485,6 @@ namespace mybox {
         }
       }
       return s;
-    }
-
-    /// <summary>
-    /// Set the config directory
-    /// </summary>
-    /// <param name="absPath"></param>
-    public void SetConfigDir(String absPath) {
-
-      if (!Directory.Exists(absPath))
-        throw new Exception("Specified config directory does not exist: " + absPath);
-
-      configFile = absPath + configFileName;
-
-      if (!File.Exists(configFile))
-        throw new Exception("Config file " + configFile + " not found");
-
-      logFile = absPath + logFileName;
-
-      fileIndex = new FileIndex(absPath + indexFileName);
     }
 
     /// <summary>
@@ -522,13 +546,39 @@ namespace mybox {
     /// Send a command signal to the server
     /// </summary>
     /// <param name="signal"></param>
-//    [MethodImpl(MethodImplOptions.Synchronized)]
+    [MethodImpl(MethodImplOptions.Synchronized)]
     private void sendCommandToServer(Signal signal) {
       try {
         socket.Send(Common.SignalToBuffer(signal));
       }
       catch (IOException ioe) {
         writeMessage(" ERROR sending: " + ioe.Message);
+      }
+    }
+
+    /// <summary>
+    /// Handle input signals from the server
+    /// </summary>
+    /// <param name="signal"></param>
+    private void handleInput(Signal signal) {
+
+      writeMessage("Handling input for signal " + signal);
+
+      switch (signal) {
+
+        case Signal.serverRequestingSync:
+          disableDirListener();
+          catchupSync = true;
+          sync();
+          break;
+        
+        case Signal.serverReadyToSync:
+          // toss it, becasuse we just want it to waste the listener
+          break;
+        
+        default:
+          throw new Exception("Client received signal it cannot handle " + signal);
+          
       }
     }
 
@@ -555,8 +605,17 @@ namespace mybox {
         
           listeningToServer = false;
           
-          Signal input = Common.BufferToSignal(inputSignalBuffer);
+          Signal input;
           
+          try {
+            input = Common.BufferToSignal(inputSignalBuffer);
+          } catch (Exception) {
+            throw new Exception("Client received unknown signal " + inputSignalBuffer);
+          }
+          
+          handleInput(input);
+          
+          /*
           if (input == Signal.serverRequestingSync) {
             disableDirListener();
             catchupSync = true;
@@ -566,8 +625,7 @@ namespace mybox {
           }
           else
             throw new Exception("Client received unknown signal " + inputSignalBuffer);
-
-//          listenToServer();
+*/
         }
       } catch (Exception) {
         writeMessage("closed by remote host");

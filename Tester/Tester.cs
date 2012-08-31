@@ -18,7 +18,7 @@ namespace mybox
     public static String baseTestDir;
     public static String baseServerDataDir;
     public static String baseServerUserDir;
-    public static String serverConfigFile;
+    public static String serverConfigDir;
     public static ClientAccount accountA;
     public static String clientConfigDirA;
     
@@ -118,7 +118,7 @@ namespace mybox
       // start processes
       
       if (serverThread == null) {
-        serverThread  = new Thread((ThreadStart)delegate {  new Server(serverConfigFile);  });
+        serverThread  = new Thread((ThreadStart)delegate {  new Server(serverConfigDir);  });
         serverThread.Start();
         Thread.Sleep(500); // wait for the server to start
       }
@@ -153,7 +153,7 @@ namespace mybox
       baseTestDir = Path.GetTempPath() + Path.DirectorySeparatorChar + "myboxTest" + Path.DirectorySeparatorChar;
       baseServerDataDir = baseTestDir + "serverData" + Path.DirectorySeparatorChar;
       baseServerUserDir = baseServerDataDir + "1" + Path.DirectorySeparatorChar;
-      serverConfigFile = baseTestDir + "server.ini";
+      serverConfigDir = baseTestDir;
       
       int port = 4441;   // use a non-default port to avoid conflicts with a running server
       
@@ -176,7 +176,6 @@ namespace mybox
       clientConfigDirB = baseTestDir + "clientConfigB" + Path.DirectorySeparatorChar;
 
       serverDb = "URI=file:" + baseServerDataDir + "server.db,version=3";
-      //"Server=localhost;Database=myboxTest;Uid=root;Pwd=root";
       
       // delete old directories and create new ones
       
@@ -193,28 +192,12 @@ namespace mybox
       Directory.CreateDirectory(accountB.Directory);
       
       // server setup
-      ServerSetup.WriteConfig(serverConfigFile, port, typeof(SqliteDB), serverDb, baseServerDataDir);
+      Server.WriteConfig(serverConfigDir, port, typeof(SqliteDB), serverDb, baseServerDataDir);
       
       // set up two client accounts
-      
-      ClientServerConnection cscDummyA = new ClientServerConnection();
-      ClientServerConnection cscDummyB = new ClientServerConnection();
-      
-      try {
-        cscDummyA.SetConfigDir(clientConfigDirA);
-      } catch (Exception) {
-        // toss config file not found exception since it is expected for a new setup
-      }
-      
-      try {
-        cscDummyB.SetConfigDir(clientConfigDirB);
-      } catch (Exception) {
-        // toss config file not found exception since it is expected for a new setup
-      }
-      
-      ClientSetup.WriteConfig(accountA, cscDummyA.ConfigFile);
-      ClientSetup.WriteConfig(accountB, cscDummyB.ConfigFile);
-      
+      ClientServerConnection.WriteConfig(accountA, clientConfigDirA);
+      ClientServerConnection.WriteConfig(accountB, clientConfigDirB);
+
       clientIndexA = new FileIndex(clientConfigDirA + "client.db");
       clientIndexB = new FileIndex(clientConfigDirB + "client.db");
       

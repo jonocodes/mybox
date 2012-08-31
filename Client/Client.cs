@@ -32,17 +32,11 @@ namespace mybox {
   /// </summary>
   public class Client {
 
-    ClientServerConnection clientConnection = new ClientServerConnection();
+    ClientServerConnection clientConnection;// = new ClientServerConnection();
 
     private void setStatus(ClientStatus status) {
 //      Console.WriteLine("Status: " + status.ToString());
     }
-
-    /// <summary>
-    /// this delegate is used for the BeginInvoke to allow for thread safe updating of the GUI
-    /// </summary>
-    /// <param name="message"></param>
-    //private delegate void writeMessageHandler(String message);
 
     /// <summary>
     /// this will handle logging the message to a file
@@ -70,8 +64,9 @@ namespace mybox {
 
       try {
         
-        clientConnection.SetConfigDir(configDir);
-        clientConnection.LoadConfig(clientConnection.ConfigFile);
+        clientConnection = new ClientServerConnection(configDir);
+//        clientConnection.SetConfigDir(configDir);
+//        clientConnection.LoadConfig(clientConnection.ConfigFile);
         
         clientConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToConsole));
         clientConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
@@ -133,7 +128,6 @@ namespace mybox {
         // print the help screen
         Common.ShowCliHelp(options, System.Reflection.Assembly.GetExecutingAssembly());
       }
-
 
       new Client(configDir);
 

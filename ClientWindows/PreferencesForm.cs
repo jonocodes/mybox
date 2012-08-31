@@ -266,10 +266,10 @@ namespace mybox {
 
         // only load the config, if it has not been loaded once already
         if (clientServerConnection == null || clientServerConnection.Account.User == null || clientServerConnection.Account.User == string.Empty) {
-          clientServerConnection = new ClientServerConnection();
+          clientServerConnection = new ClientServerConnection(ClientServerConnection.DefaultConfigDir);
           
-          clientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
-          clientServerConnection.LoadConfig(clientServerConnection.ConfigFile);
+//          clientServerConnection.SetConfigDir(ClientServerConnection.DefaultConfigDir); // quits if it fails
+//          clientServerConnection.LoadConfig(clientServerConnection.ConfigFile);
           
           clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToFile));
           clientServerConnection.LogHandlers.Add(new ClientServerConnection.LoggingHandlerDelegate(logToTextBoxThreadSafe));

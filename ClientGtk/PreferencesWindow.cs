@@ -163,9 +163,9 @@ public partial class PreferencesWindow : Gtk.Window {
 
     try {
     
-      clientConnection = new mybox.ClientServerConnection();
-      clientConnection.SetConfigDir(mybox.ClientServerConnection.DefaultConfigDir); // quits if it fails
-      clientConnection.LoadConfig(clientConnection.ConfigFile);
+      clientConnection = new mybox.ClientServerConnection(mybox.ClientServerConnection.DefaultConfigDir);
+//      clientConnection.SetConfigDir(mybox.ClientServerConnection.DefaultConfigDir); // quits if it fails
+//      clientConnection.LoadConfig(clientConnection.ConfigFile);
       
       clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToFile));
       clientConnection.LogHandlers.Add(new mybox.ClientServerConnection.LoggingHandlerDelegate(logToTextView));

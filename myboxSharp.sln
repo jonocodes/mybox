@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientSetup", "ClientSetup\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerSetup", "ServerSetup\ServerSetup.csproj", "{70E5D32A-72A6-40A1-85A1-B64B070C28AF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServerAdmin", "ServerAdmin\ServerAdmin.csproj", "{FE630CA8-F42B-4E1B-9157-403A1119E650}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientWindows", "ClientWindows\ClientWindows.csproj", "{5BB8B615-FA5C-4C14-8AA1-CBACBE95662C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientGtk", "ClientGtk\ClientGtk.csproj", "{4C378D08-B7E4-4415-9ED1-8EBF724333D5}"
@@ -110,14 +108,6 @@ Global
 		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|Mixed Platforms.Build.0 = Release|Mixed Platforms
 		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|x86.ActiveCfg = Release|Mixed Platforms
 		{E44A01C4-A08B-44BC-B109-F835DD86F62A}.Release|x86.Build.0 = Release|Mixed Platforms
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|Mixed Platforms.Build.0 = Debug|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|x86.ActiveCfg = Debug|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Debug|x86.Build.0 = Debug|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|Mixed Platforms.ActiveCfg = Release|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|Mixed Platforms.Build.0 = Release|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|x86.ActiveCfg = Release|x86
-		{FE630CA8-F42B-4E1B-9157-403A1119E650}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		StartupItem = Server\Server.csproj

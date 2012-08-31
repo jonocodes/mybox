@@ -75,7 +75,7 @@ namespace mybox {
       try {
         int count = socket.EndReceive(iar);
         if (count == 0) {
-          Server.WriteMessage("closed by remote host");
+          server.WriteMessage("closed by remote host");
           close();
         }
         else {
@@ -85,7 +85,7 @@ namespace mybox {
         }
       }
       catch (Exception e) {
-        Server.WriteMessage("closed by remote host with exception: " + e.Message +"\n" + e.StackTrace);
+        server.WriteMessage("closed by remote host with exception: " + e.Message +"\n" + e.StackTrace);
         close();
       }
     }
@@ -109,7 +109,7 @@ namespace mybox {
     }
 
     public void TellClientToSync() {
-      Server.WriteMessage("Telling client to sync, handle: " + handle);
+      server.WriteMessage("Telling client to sync, handle: " + handle);
     
       socket.Send(Common.SignalToBuffer(Signal.serverRequestingSync));
       // TODO: catch
@@ -137,12 +137,12 @@ namespace mybox {
       User = server.DB.GetUserByName(userName);
 
       if (User == null) {
-        Server.WriteMessage("User does not exist: " + userName); // TODO: return false?
+        server.WriteMessage("User does not exist: " + userName); // TODO: return false?
         return false;
       }
 
       if (!server.DB.CheckPassword(password, User.password)) {
-        Server.WriteMessage("Password incorrect for: " + userName);
+        server.WriteMessage("Password incorrect for: " + userName);
         return false;
       }
 
@@ -153,13 +153,13 @@ namespace mybox {
         try {
           Directory.CreateDirectory(dataDir); // TODO: make recursive
         } catch (Exception) {
-          Server.WriteMessage("Unable to find or create data directory: " + dataDir);
+          server.WriteMessage("Unable to find or create data directory: " + dataDir);
           return false;
         }
       }
 
-      Server.WriteMessage("Attached account " + userName + " to handle " + handle);
-      Server.WriteMessage("Local server storage in: " + dataDir);
+      server.WriteMessage("Attached account " + userName + " to handle " + handle);
+      server.WriteMessage("Local server storage in: " + dataDir);
 
       return true;
     }
@@ -170,7 +170,7 @@ namespace mybox {
     /// <param name="signal"></param>
     private void handleInput(Signal signal) {
 
-      Server.WriteMessage("Handling input for signal " + signal);
+      server.WriteMessage("Handling input for signal " + signal);
 
       switch (signal) {
           
@@ -248,20 +248,20 @@ namespace mybox {
           //if (path == ".")
           //  path = string.Empty;
           
-          Server.WriteMessage("checking DB for file list for path: " + path);
+          server.WriteMessage("checking DB for file list for path: " + path);
           
           List<List<string>> fileListToSerialize = server.DB.GetDirListSerializable(User, path);
 
           String jsonOutStringFiles = jsonSerializer.Serialize(fileListToSerialize);  //JsonConvert.SerializeObject(fileListToSerialize);
 
-          Server.WriteMessage("sending json file list string: (" + jsonOutStringFiles + ")");
+          server.WriteMessage("sending json file list string: (" + jsonOutStringFiles + ")");
 
           try {
 //            sendCommandToClient(Signal.requestServerFileList_response);
             Common.SendString(socket, jsonOutStringFiles);
           }
           catch (Exception e) {
-            Server.WriteMessage("Error during " + Signal.requestServerFileList + e.Message);
+            server.WriteMessage("Error during " + Signal.requestServerFileList + e.Message);
             Common.ExitError();
           }
 
@@ -271,7 +271,7 @@ namespace mybox {
 
           String args = Common.ReceiveString(socket);
 
-          Server.WriteMessage("received " + args);
+          server.WriteMessage("received " + args);
 
           List<string> attachInput = jsonSerializer.Deserialize<List<string>>(args); //JsonConvert.DeserializeObject<List<string>>(args);
 
@@ -303,16 +303,16 @@ namespace mybox {
             Common.SendString(socket, jsonOutString);
           }
           catch (Exception e) {
-            Server.WriteMessage("Error during " + Signal.attachaccount_response + e.Message);
+            server.WriteMessage("Error during " + Signal.attachaccount_response + e.Message);
             Common.ExitError();
           }
 
-          Server.WriteMessage("attachaccount_response: " + jsonOutString);
+          server.WriteMessage("attachaccount_response: " + jsonOutString);
 
           break;
 
         default:
-          Server.WriteMessage("Unknown command");
+          server.WriteMessage("Unknown command");
           break;
 
       }

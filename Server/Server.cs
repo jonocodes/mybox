@@ -51,8 +51,22 @@ namespace mybox {
     public int port = Common.DefaultCommunicationPort;
     public IServerDB DB = null;
 
-    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
+//    public static readonly String DefaultConfigFile = Common.UserHome + "/.mybox/server.ini";
+    
  //   public static readonly String logFile = Common.UserHome + "/.mybox/mybox_server.log";
+
+
+
+
+    public static readonly String DefaultConfigDir = Common.UserHome + "/.mybox/";
+
+    private const String configFileName = "server.ini";
+    private const String logFileName = "server.log";
+
+
+    //private String configFile;
+    private String logFile;
+
 
     public static readonly String CONFIG_PORT = "port";
     public static readonly String CONFIG_DIR = "baseDataDir";
@@ -60,13 +74,13 @@ namespace mybox {
     public static readonly String CONFIG_BACKEND = "backend";
 
 
-    public static void WriteMessage(String message) {
+    public void WriteMessage(String message) {
 #if DEBUG
       Console.WriteLine("SERVER: {0}", message);
 #else
       Console.WriteLine(DateTime.Now + " : " + message);
 #endif
-    
+      File.AppendAllText(logFile, message + Environment.NewLine);
     }
 
     #endregion
@@ -75,14 +89,41 @@ namespace mybox {
     /// Constructor. Maintains a loop for listening for incoming clients.
     /// </summary>
     /// <param name="configFile"></param>
-    public Server(String configFile) {
+    public Server(String configDir) {
 
-      WriteMessage("Starting server");
-      WriteMessage("Loading config file " + configFile);
+      // initialize variables
+      if (!Directory.Exists(configDir))
+        throw new Exception("Specified config directory does not exist: " + configDir);
 
-      port = LoadConfig(configFile, out DB);
-      //DB.RebuildFilesTable();
+      String configFile = configDir + configFileName;
 
+      if (!File.Exists(configFile))
+        throw new Exception("Config file " + configFile + " not found");
+
+      logFile = configDir + logFileName;
+      
+      // load the config file
+      try {
+        IniParser iniParser = new IniParser(configFile);
+
+        port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
+        String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
+        String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
+        Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
+
+        baseDataDir = Common.EndDirWithoutSlash(baseDataDir);
+
+        DB = (IServerDB)Activator.CreateInstance(dbType);
+        DB.Connect(serverDbConnectionString, baseDataDir);
+
+      } catch (FileNotFoundException e) {
+        Console.WriteLine(e.Message);
+        Common.ExitError();
+      }
+      
+
+      // start the listener
+      
       TcpListener tcpListener = new TcpListener(IPAddress.Any, port);
 
       try {
@@ -94,7 +135,7 @@ namespace mybox {
       }
 
       while (true) {
-        WriteMessage(" waiting for client to connect...");
+        WriteMessage("Waiting for client to connect...");
         Socket listenerSocket = tcpListener.AcceptSocket();
 
         WriteMessage("Client connected with handle " + listenerSocket.Handle);
@@ -102,6 +143,7 @@ namespace mybox {
         clients.Add(listenerSocket.Handle, client);
       }
     }
+    
     /*
     public static HashSet<Type> GetBackends() {
 
@@ -115,36 +157,29 @@ namespace mybox {
       return result;
     }
     */
-    /// <summary>
-    /// Set member variables from config file
-    /// </summary>
-    /// <param name="configFile"></param>
-    public static int LoadConfig(String configFile, out IServerDB serverDB) {
+    
+    public static void WriteConfig(String configDir, int port, Type backend, 
+      String serverDbConnectionString, String baseDataDir)
+    {
 
-      serverDB = null;
+      string configFile = configDir + configFileName;
 
-      int port = -1;
+      if (!Directory.Exists(configDir)) 
+        if (!Common.CreateLocalDirectory(configDir)) 
+          throw new Exception("Unable to create directory " + configDir);
 
-      try {
-        IniParser iniParser = new IniParser(configFile);
+      // TODO: handle existing file
 
-        port = int.Parse(iniParser.GetSetting("settings", CONFIG_PORT));  // returns NULL when not found ?
-        String baseDataDir = iniParser.GetSetting("settings", CONFIG_DIR);
-        String serverDbConnectionString = iniParser.GetSetting("settings", CONFIG_DBSTRING);
-        Type dbType = Type.GetType(iniParser.GetSetting("settings", CONFIG_BACKEND));
-
-        baseDataDir = Common.EndDirWithoutSlash(baseDataDir);
-
-        serverDB = (IServerDB)Activator.CreateInstance(dbType);
-        serverDB.Connect(serverDbConnectionString, baseDataDir);
-
-      } catch (FileNotFoundException e) {
-        Console.WriteLine(e.Message);
-        Common.ExitError();
+      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
+        file.WriteLine("[settings]");
+        file.WriteLine(Server.CONFIG_PORT + "=" + port);
+        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
+        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
+        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
       }
 
-      return port;
     }
+    
 
     /// <summary>
     /// Add a client connection handle to the client multimap
@@ -233,10 +268,10 @@ namespace mybox {
 
       OptionSet options = new OptionSet();
 
-      String configFile = DefaultConfigFile;
-
-      options.Add("c|configfile=", "configuration file (default=" + configFile + ")", delegate(string v) {
-        configFile = v;
+      String configDir = DefaultConfigDir;
+      
+      options.Add("c|configdir=", "configuration directory (default=" + configDir + ")", delegate(string v) {
+        configDir = Common.EndDirWithSlash(v);
       });
 
       options.Add("h|help", "show help screen", delegate(string v) {
@@ -269,7 +304,7 @@ namespace mybox {
         Common.ShowCliHelp(options, System.Reflection.Assembly.GetExecutingAssembly());
       }
 
-      new Server(configFile);
+      new Server(configDir);
 
     }
   }

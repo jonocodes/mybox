@@ -34,34 +34,6 @@ namespace mybox {
   /// </summary>
   public class ServerSetup {
 
-    public static bool WriteConfig(String configFile, int port, Type backend, 
-      String serverDbConnectionString, String baseDataDir)
-    {
-
-      string configDir = Path.GetDirectoryName(configFile);
-
-      if (!Directory.Exists(configDir)) {
-        if (!Common.CreateLocalDirectory(configDir)) {
-          Console.WriteLine("Unable to create config directory " + configDir);
-          Common.ExitError ();
-        }
-      }
-
-      // TODO: handle existing file
-
-      using (System.IO.StreamWriter file = new System.IO.StreamWriter(configFile, false)) {
-        file.WriteLine("[settings]");
-        file.WriteLine(Server.CONFIG_PORT + "=" + port);
-        file.WriteLine(Server.CONFIG_BACKEND + "=" + backend.ToString());
-        file.WriteLine(Server.CONFIG_DBSTRING + "=" + serverDbConnectionString);
-        file.WriteLine(Server.CONFIG_DIR + "=" + baseDataDir);
-      }
-
-      Console.WriteLine ("Config file written: " + configFile);
-
-      return true;
-    }
-
     private ServerSetup () {
 
       Console.WriteLine ("Welcome to the Mybox server setup wizard");
@@ -70,7 +42,7 @@ namespace mybox {
 //    private int defaultQuota = Server.DefaultQuota;
       Type backend = typeof(SqliteDB);
 
-      String configFile = Server.DefaultConfigFile;
+      String configDir = Server.DefaultConfigDir;
       String serverDbConnectionString;
       String baseDataDir;
     
@@ -110,25 +82,25 @@ namespace mybox {
       Console.WriteLine("  The database currently contains " + accounts + " accounts");
       
       Console.WriteLine("Rebuilding files table from filesystem");
-      //serverDB.RebuildFilesTable();
-
+      
       if (accounts == 0)
         Console.WriteLine("You will not be able to to use Mybox unless user are created on the server.");
 
 
-      Console.Write("Config file to create [" + configFile + "]: ");
+      Console.Write("Configuration directory [" + configDir + "]: ");
       input = Console.ReadLine();
       if (input != String.Empty)
-        configFile = input;
+        configDir = input;
 
-
-      if (!WriteConfig(configFile, port, backend, serverDbConnectionString, baseDataDir)) {
-        Console.WriteLine("Unable to save config file.");
+      // config directory
+      if (!Common.CreateLocalDirectory(configDir)) {
+        Console.WriteLine("Config directory could not be created: " + configDir);
         Common.ExitError();
       }
 
-      Console.WriteLine("Setup finished successfully.");
+      Server.WriteConfig(configDir, port, backend, serverDbConnectionString, baseDataDir);
 
+      Console.WriteLine("Setup finished successfully.");
     }
 
     /// <summary>
